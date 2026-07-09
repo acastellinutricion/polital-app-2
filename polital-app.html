@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
 <meta name="theme-color" content="#1F4E79"/>
 <title>Polital</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f7fa;color:#1a1a2e;min-height:100vh}
@@ -13,8 +14,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .nav-logo{width:36px;height:36px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px}
 .nav-title{color:#fff;font-size:16px;font-weight:600}
 .nav-sub{color:rgba(255,255,255,.6);font-size:12px}
-.logout-btn{background:rgba(255,255,255,.15);color:#fff;border:none;padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer}
-.page{max-width:800px;margin:0 auto;padding:1.25rem}
+.logout-btn{background:rgba(255,255,255,.15);color:#fff;border:none;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer}
+.page{max-width:820px;margin:0 auto;padding:1.25rem}
 .card{background:#fff;border:1px solid #e5e9f0;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
 .card-title{font-size:12px;font-weight:600;color:#888;margin-bottom:14px;text-transform:uppercase;letter-spacing:.05em}
 .metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem}
@@ -25,8 +26,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .badge-green{background:#C6EFCE;color:#1F7A4A}
 .badge-yellow{background:#FFEB9C;color:#9C6500}
 .badge-red{background:#FFC7CE;color:#9C0006}
-.tabs{display:flex;gap:4px;border-bottom:1px solid #e5e9f0;margin-bottom:1.25rem}
-.tab{padding:10px 16px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;color:#888;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #e5e9f0;margin-bottom:1.25rem;overflow-x:auto}
+.tab{padding:10px 16px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;color:#888;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .tab.active{color:#1F4E79;border-bottom-color:#1F4E79}
 .form-group{margin-bottom:14px}
 .form-group label{display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:5px}
@@ -46,6 +47,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .login-title{font-size:20px;font-weight:700;text-align:center;margin-bottom:4px}
 .login-sub{font-size:13px;color:#888;text-align:center;margin-bottom:1.5rem}
 .msg-error{background:#FFC7CE;color:#9C0006;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px}
+.msg-success{background:#C6EFCE;color:#1F7A4A;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px}
 .player-item{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border:1px solid #e5e9f0;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:border-color .15s}
 .player-item:hover{border-color:#2E75B6}
 .player-avatar{width:36px;height:36px;border-radius:50%;background:#D6E4F0;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;color:#1F4E79;flex-shrink:0}
@@ -55,7 +57,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .stat-value{font-size:24px;font-weight:600;color:#1F4E79}
 .stat-sub{font-size:11px;color:#aaa;margin-top:2px}
 .progress-item{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-.progress-label{font-size:12px;color:#555;width:160px;flex-shrink:0}
+.progress-label{font-size:12px;color:#555;width:170px;flex-shrink:0}
 .progress-track{flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden}
 .progress-fill{height:100%;border-radius:4px}
 .progress-val{font-size:12px;font-weight:600;width:56px;text-align:right}
@@ -71,37 +73,50 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .alert-item{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border:1px solid #e5e9f0;border-radius:10px;margin-bottom:8px;cursor:pointer}
 .priority-badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px}
 .plantel-btns{display:flex;gap:8px;margin-bottom:1.25rem;flex-wrap:wrap}
-.diff-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0}
+.diff-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f0f0f0}
+.diff-row:last-child{border-bottom:none}
+.big-diff{display:flex;align-items:center;gap:8px;padding:16px;border-radius:12px;margin-bottom:10px}
+.big-diff-icon{font-size:28px}
+.big-diff-content{flex:1}
+.big-diff-label{font-size:12px;color:#666;margin-bottom:2px}
+.big-diff-values{font-size:15px;font-weight:600}
+.big-diff-change{font-size:13px;font-weight:700;padding:4px 10px;border-radius:20px}
+.motiv-card{background:linear-gradient(135deg,#1F7A4A 0%,#2E9B5F 100%);color:#fff;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.motiv-title{font-size:16px;font-weight:700;margin-bottom:4px}
+.motiv-text{font-size:13px;opacity:.95}
+.search-box{width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:10px;font-size:14px;margin-bottom:12px;outline:none}
+.search-box:focus{border-color:#1F4E79}
+.filter-btns{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filter-btn{padding:6px 12px;font-size:12px;border-radius:20px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer}
+.filter-btn.active{background:#1F4E79;color:#fff;border-color:#1F4E79}
+.chart-box{position:relative;height:260px;width:100%}
 .hidden{display:none!important}
-.loading{text-align:center;padding:3rem;color:#888;font-size:15px}
-@media(max-width:500px){.metric-grid{grid-template-columns:1fr 1fr}.form-row{grid-template-columns:1fr}.stats-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:500px){.metric-grid{grid-template-columns:1fr 1fr}.form-row{grid-template-columns:1fr}.stats-grid{grid-template-columns:1fr 1fr}.progress-label{width:120px}}
+@media print{.nav,.tabs,.btn,.back-btn,.logout-btn{display:none!important}body{background:#fff}.card{break-inside:avoid}}
 </style>
 </head>
 <body>
-
 <div id="app"></div>
-
 <script>
-// ── CONFIG ────────────────────────────────────────────────
-const SB_URL = 'https://vszcakubssswvofnuhze.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzemNha3Vic3Nzd3ZvZm51aHplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMjQzMjUsImV4cCI6MjA5ODYwMDMyNX0.B6va0Z7Xnc6d6iYHRG3SlvLtgCcfgqKxci1L49e0fGc';
-const H = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
+const SB_URL='https://vszcakubssswvofnuhze.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzemNha3Vic3Nzd3ZvZm51aHplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMjQzMjUsImV4cCI6MjA5ODYwMDMyNX0.B6va0Z7Xnc6d6iYHRG3SlvLtgCcfgqKxci1L49e0fGc';
+const H={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
 
 // ── SUPABASE CLIENT ───────────────────────────────────────
-const sb = {
-  from(table) {
-    let _sel='*', _fil=[], _ord=null, _single=false;
-    const c = {
-      select(s){ _sel=s; return c; },
-      eq(col,val){ _fil.push(col+'=eq.'+encodeURIComponent(val)); return c; },
-      order(col,opts){ _ord=col+(opts&&opts.ascending===false?'.desc':'.asc'); return c; },
-      single(){ _single=true; return c; },
+const sb={
+  from(table){
+    let _sel='*',_fil=[],_ord=null,_single=false;
+    const c={
+      select(s){_sel=s;return c;},
+      eq(col,val){_fil.push(col+'=eq.'+encodeURIComponent(val));return c;},
+      order(col,opts){_ord=col+(opts&&opts.ascending===false?'.desc':'.asc');return c;},
+      single(){_single=true;return c;},
       async then(res){
         let url=SB_URL+'/rest/v1/'+table+'?select='+encodeURIComponent(_sel);
         _fil.forEach(f=>url+='&'+f);
-        if(_ord) url+='&order='+_ord;
-        const h={...H};
-        if(_single) h['Accept']='application/vnd.pgrst.object+json';
+        if(_ord)url+='&order='+_ord;
+        const h=Object.assign({},H);
+        if(_single)h['Accept']='application/vnd.pgrst.object+json';
         try{
           const r=await fetch(url,{headers:h});
           const txt=await r.text();
@@ -111,7 +126,7 @@ const sb = {
       }
     };
     return {
-      select(s='*'){_sel=s;return c;},
+      select(s){if(s)_sel=s;return c;},
       eq(col,val){_fil.push(col+'=eq.'+encodeURIComponent(val));return c;},
       single(){_single=true;return c;},
       order(col,opts){_ord=col+(opts&&opts.ascending===false?'.desc':'.asc');return c;},
@@ -136,6 +151,20 @@ const sb = {
           }
         };
         return uc;
+      },
+      delete(){
+        let _df=[];
+        const dc={
+          eq(col,val){_df.push(col+'=eq.'+encodeURIComponent(val));return dc;},
+          async then(res){
+            try{
+              const url=SB_URL+'/rest/v1/'+table+'?'+_df.join('&');
+              const r=await fetch(url,{method:'DELETE',headers:H});
+              res({error:r.ok?null:{message:await r.text()}});
+            }catch(e){res({error:{message:e.message}});}
+          }
+        };
+        return dc;
       }
     };
   }
@@ -148,268 +177,420 @@ const f2=v=>v!=null?parseFloat(v).toFixed(2):'—';
 const f1=v=>v!=null?parseFloat(v).toFixed(1):'—';
 const f0=v=>v!=null?parseFloat(v).toFixed(0):'—';
 const avg=arr=>arr.length?arr.reduce((s,x)=>s+x,0)/arr.length:0;
-
 function eMA(v){return v<=18?{l:'OK',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v<=22?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'REDUCIR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
-function eIMO(v){return v>=3.8?{l:'ÓPTIMO',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v>=3.5?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'MEJORAR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
-function eS6P(v){return v<=80?{l:'ÓPTIMO',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v<=100?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'REDUCIR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
+function eIMO(v){return v>=3.8?{l:'OPTIMO',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v>=3.5?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'MEJORAR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
+function eS6P(v){return v<=80?{l:'OPTIMO',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v<=100?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'REDUCIR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
 function pts(m){if(!m)return 0;let p=0;if(m.masa_adiposa>22)p+=2;else if(m.masa_adiposa>18)p+=1;if(m.s6p>100)p+=2;else if(m.s6p>80)p+=1;if(m.imo<3.5)p+=2;else if(m.imo<3.8)p+=1;return p;}
 function prio(p){return p>=5?{l:'URGENTE',c:'badge-red'}:p>=3?{l:'ALTA',c:'badge-red'}:p>=2?{l:'MEDIA',c:'badge-yellow'}:p>=1?{l:'BAJA',c:'badge-yellow'}:{l:'OK',c:'badge-green'}}
 function ultima(jid){const m=APP.meds.filter(x=>x.jugadora_id===jid);return m.length?m.reduce((a,b)=>a.n_medicion>b.n_medicion?a:b):null}
 function medsJ(jid){return APP.meds.filter(x=>x.jugadora_id===jid).sort((a,b)=>a.n_medicion-b.n_medicion)}
-function diffArrow(n,a,up){const d=n-a;if(Math.abs(d)<0.05)return '<span style="color:#aaa">—</span>';const ok=up?d>0:d<0;const col=ok?'#1F7A4A':'#9C0006';return `<span style="color:${col};font-size:11px">${d>0?'▲':'▼'}${Math.abs(d).toFixed(1)}</span>`;}
 
-// ── APP STATE ─────────────────────────────────────────────
-let APP={mode:'jugadora',session:null,planteles:[],jugs:[],meds:[],selPlantel:null,selJug:null,jugMeds:[],jugObj:null};
+let APP={session:null,planteles:[],jugs:[],meds:[],selPlantel:null,selJug:null,jugMeds:[],jugObj:null,search:'',filter:'todos',charts:[]};
+function render(html){destroyCharts();$('app').innerHTML=html;}
+function destroyCharts(){APP.charts.forEach(c=>{try{c.destroy()}catch(e){}});APP.charts=[];}
 
-// ── RENDER ────────────────────────────────────────────────
-function render(html){$('app').innerHTML=html;}
+// ── CHART BUILDER ─────────────────────────────────────────
+function buildChart(canvasId,meds){
+  const ctx=$(canvasId);
+  if(!ctx)return;
+  const labels=meds.map(m=>'N'+m.n_medicion);
+  const ch=new Chart(ctx,{
+    type:'line',
+    data:{labels:labels,datasets:[
+      {label:'M.Adiposa',data:meds.map(m=>m.masa_adiposa),borderColor:'#C55A11',backgroundColor:'#C55A11',tension:.3,pointRadius:4},
+      {label:'IMO',data:meds.map(m=>m.imo),borderColor:'#2E75B6',backgroundColor:'#2E75B6',tension:.3,pointRadius:4,yAxisID:'y1'},
+      {label:'S6P',data:meds.map(m=>m.s6p),borderColor:'#70AD47',backgroundColor:'#70AD47',tension:.3,pointRadius:4}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+      scales:{y:{position:'left',title:{display:true,text:'MA / S6P',font:{size:10}}},
+        y1:{position:'right',title:{display:true,text:'IMO',font:{size:10}},grid:{drawOnChartArea:false},min:0,max:6}}}
+  });
+  APP.charts.push(ch);
+}
+
+// ── DIFF HELPERS ──────────────────────────────────────────
+function bigDiff(label,nue,ant,up,fmt,unit){
+  const d=nue-ant;const neu=Math.abs(d)<0.05;const ok=up?d>0:d<0;
+  const col=neu?'#888':ok?'#1F7A4A':'#9C0006';
+  const bg=neu?'#f5f5f5':ok?'#E8F5EC':'#FDEAEC';
+  const icon=neu?'➡️':ok?(up?'📈':'📉'):(up?'📉':'📈');
+  const arrow=neu?'Sin cambio':((d>0?'▲ +':'▼ ')+Math.abs(d).toFixed(2)+' '+unit);
+  const txt=ok?'Mejoró':'A trabajar';
+  return '<div class="big-diff" style="background:'+bg+'">'+
+    '<div class="big-diff-icon">'+icon+'</div>'+
+    '<div class="big-diff-content"><div class="big-diff-label">'+label+'</div>'+
+    '<div class="big-diff-values">'+fmt(ant)+unit+' → '+fmt(nue)+unit+'</div></div>'+
+    '<div style="text-align:right"><div class="big-diff-change" style="color:'+col+';background:'+(neu?'#eee':ok?'#C6EFCE':'#FFC7CE')+'">'+arrow+'</div>'+
+    (neu?'':'<div style="font-size:11px;color:'+col+';margin-top:4px;font-weight:600">'+txt+'</div>')+'</div></div>';
+}
+function diffArrow(n,a,up){const d=n-a;if(Math.abs(d)<0.05)return '<span style="color:#aaa">—</span>';const ok=up?d>0:d<0;const col=ok?'#1F7A4A':'#9C0006';return '<span style="color:'+col+';font-size:11px;font-weight:600">'+(d>0?'▲':'▼')+Math.abs(d).toFixed(1)+'</span>';}
+
+// ── MOTIVACIONAL ──────────────────────────────────────────
+function mensajeMotivacional(meds){
+  if(meds.length<2)return null;
+  const ult=meds[meds.length-1],pen=meds[meds.length-2];
+  const dMA=ult.masa_adiposa-pen.masa_adiposa;
+  const dS6P=ult.s6p-pen.s6p;
+  const dIMO=ult.imo-pen.imo;
+  let logros=[];
+  if(dMA<-0.05)logros.push('bajaste '+Math.abs(dMA).toFixed(1)+' kg de masa adiposa');
+  if(dS6P<-0.5)logros.push('redujiste '+Math.abs(dS6P).toFixed(0)+' mm en pliegues');
+  if(dIMO>0.02)logros.push('subiste tu IMO a '+ult.imo.toFixed(2));
+  if(logros.length>=2)return {t:'¡Excelente progreso! 🎉',s:'En tu última medición '+logros.slice(0,2).join(' y ')+'. ¡Seguí así!'};
+  if(logros.length===1)return {t:'¡Vas por buen camino! 💪',s:'En tu última medición '+logros[0]+'. ¡Seguí sumando!'};
+  if(dMA>0.05||dS6P>0.5)return {t:'¡A meterle con todo! 🎯',s:'Esta medición tuvo algunos cambios para trabajar. Con constancia lo damos vuelta.'};
+  return {t:'¡Manteniendo el nivel! ✨',s:'Tus valores se mantienen estables. La constancia es clave.'};
+}
+
 
 // ── LOGIN ─────────────────────────────────────────────────
-function renderLogin(mode='jugadora',err=''){
-  render(`
-  <div class="login-wrap">
-    <div class="login-card">
-      <div class="login-logo">
-        <div class="login-logo-circle">P</div>
-        <div class="login-title">Polital</div>
-        <div class="login-sub">${mode==='admin'?'Acceso administrador':'Sistema Antropométrico'}</div>
-      </div>
-      ${err?`<div class="msg-error">${err}</div>`:''}
-      <div class="form-group"><label>Usuario</label><input id="lu" placeholder="tu usuario" autocapitalize="none" autocorrect="off"/></div>
-      <div class="form-group"><label>Contraseña</label><input id="lp" type="password" placeholder="••••••••"/></div>
-      <button class="btn btn-primary btn-full" onclick="doLogin('${mode}')">Ingresar</button>
-      <div style="text-align:center;font-size:13px;color:#888;margin-top:1rem;padding-top:1rem;border-top:1px solid #eee">
-        ${mode==='jugadora'?'¿Sos el entrenador? <a href="#" onclick="renderLogin(&quot;admin&quot;);return false;" style="color:#2E75B6;font-weight:500">Acceso admin</a>':'¿Sos jugadora? <a href="#" onclick="renderLogin(&quot;jugadora&quot;);return false;" style="color:#2E75B6;font-weight:500">Volver</a>'}
-      </div>
-    </div>
-  </div>`);
-  $('lp').onkeydown=e=>{if(e.key==='Enter')doLogin(mode);};
+function renderLogin(mode,err){
+  mode=mode||'jugadora';err=err||'';
+  var linkHtml = mode==='jugadora'
+    ? '¿Sos el entrenador? <a href="#" onclick="renderLogin(&quot;admin&quot;);return false;" style="color:#2E75B6;font-weight:500">Acceso admin</a>'
+    : '¿Sos jugadora? <a href="#" onclick="renderLogin(&quot;jugadora&quot;);return false;" style="color:#2E75B6;font-weight:500">Volver</a>';
+  render(
+  '<div class="login-wrap"><div class="login-card">'+
+    '<div class="login-logo"><div class="login-logo-circle">P</div>'+
+    '<div class="login-title">Polital</div>'+
+    '<div class="login-sub">'+(mode==='admin'?'Acceso administrador':'Sistema Antropométrico')+'</div></div>'+
+    (err?'<div class="msg-error">'+err+'</div>':'')+
+    '<div class="form-group"><label>Usuario</label><input id="lu" placeholder="tu usuario" autocapitalize="none" autocorrect="off"/></div>'+
+    '<div class="form-group"><label>Contraseña</label><input id="lp" type="password" placeholder="clave"/></div>'+
+    '<button class="btn btn-primary btn-full" onclick="doLogin(&quot;'+mode+'&quot;)">Ingresar</button>'+
+    '<div style="text-align:center;font-size:13px;color:#888;margin-top:1rem;padding-top:1rem;border-top:1px solid #eee">'+linkHtml+'</div>'+
+  '</div></div>');
+  var lp=$('lp');
+  if(lp)lp.onkeydown=function(e){if(e.key==='Enter')doLogin(mode);};
 }
 
 async function doLogin(mode){
-  const u=$('lu')?.value?.trim()?.toLowerCase();
-  const p=$('lp')?.value;
+  var u=$('lu')?$('lu').value.trim().toLowerCase():'';
+  var p=$('lp')?$('lp').value:'';
   if(!u||!p){renderLogin(mode,'Completá usuario y contraseña');return;}
   if(mode==='admin'){
     if(u==='agus'&&p==='polital2024'){APP.session={role:'admin'};await loadAdmin();renderAdmin();}
     else renderLogin(mode,'Usuario o contraseña incorrectos');
     return;
   }
-  const {data,error}=await sb.from('jugadoras').select('*,planteles(nombre)').eq('usuario',u).eq('activa',true).single();
-  if(error||!data){renderLogin(mode,'Usuario no encontrado');return;}
-  if(data.password_hash!==p){renderLogin(mode,'Contraseña incorrecta');return;}
-  APP.session={role:'jugadora',id:data.id,nombre:data.nombre,plantel:data.planteles?.nombre};
-  const {data:m}=await sb.from('mediciones').select('*').eq('jugadora_id',data.id).order('n_medicion');
-  const {data:o}=await sb.from('objetivos').select('*').eq('jugadora_id',data.id).single();
-  APP.jugMeds=m||[];APP.jugObj=o;
+  var r=await sb.from('jugadoras').select('*,planteles(nombre)').eq('usuario',u).eq('activa',true).single();
+  if(r.error||!r.data){renderLogin(mode,'Usuario no encontrado');return;}
+  if(r.data.password_hash!==p){renderLogin(mode,'Contraseña incorrecta');return;}
+  APP.session={role:'jugadora',id:r.data.id,nombre:r.data.nombre,plantel:r.data.planteles?r.data.planteles.nombre:''};
+  var m=await sb.from('mediciones').select('*').eq('jugadora_id',r.data.id).order('n_medicion');
+  var o=await sb.from('objetivos').select('*').eq('jugadora_id',r.data.id).single();
+  APP.jugMeds=m.data||[];APP.jugObj=o.data;
   renderJugadora();
 }
 
 // ── JUGADORA ──────────────────────────────────────────────
-function renderJugadora(tab='estado'){
-  const meds=APP.jugMeds;
-  const ult=meds.length?meds[meds.length-1]:null;
-  const pen=meds.length>1?meds[meds.length-2]:null;
-  const nav=`<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div><div class="nav-title">Polital</div><div class="nav-sub">${APP.session.plantel||''}</div></div></div><button class="logout-btn" onclick="renderLogin()">Salir</button></nav>`;
-  const header=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:1.25rem"><div class="player-avatar" style="width:48px;height:48px;font-size:18px">${ini(APP.session.nombre)}</div><div><div style="font-size:20px;font-weight:600">${APP.session.nombre}</div><div style="font-size:13px;color:#888">${ult?`Última medición: ${ult.fecha||'—'} · N° ${ult.n_medicion}`:'Sin mediciones'}</div></div></div>`;
-  const tabs=`<div class="tabs"><button class="tab ${tab==='estado'?'active':''}" onclick="renderJugadora('estado')">Mi estado</button><button class="tab ${tab==='evolucion'?'active':''}" onclick="renderJugadora('evolucion')">Evolución</button><button class="tab ${tab==='historial'?'active':''}" onclick="renderJugadora('historial')">Historial</button></div>`;
-  
-  let content='';
+function renderJugadora(tab){
+  tab=tab||'estado';
+  var meds=APP.jugMeds;
+  var ult=meds.length?meds[meds.length-1]:null;
+  var pen=meds.length>1?meds[meds.length-2]:null;
+  var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div><div class="nav-title">Polital</div><div class="nav-sub">'+(APP.session.plantel||'')+'</div></div></div>'+
+    '<div style="display:flex;gap:6px"><button class="logout-btn" onclick="modalCambiarPass()">🔑 Clave</button><button class="logout-btn" onclick="renderLogin()">Salir</button></div></nav>';
+  var header='<div style="display:flex;align-items:center;gap:14px;margin-bottom:1.25rem"><div class="player-avatar" style="width:48px;height:48px;font-size:18px">'+ini(APP.session.nombre)+'</div>'+
+    '<div><div style="font-size:20px;font-weight:600">'+APP.session.nombre+'</div><div style="font-size:13px;color:#888">'+(ult?'Última medición: '+(ult.fecha||'—')+' · N° '+ult.n_medicion:'Sin mediciones')+'</div></div></div>';
+  var tabs='<div class="tabs">'+
+    '<button class="tab '+(tab==='estado'?'active':'')+'" onclick="renderJugadora(&quot;estado&quot;)">Mi estado</button>'+
+    '<button class="tab '+(tab==='evolucion'?'active':'')+'" onclick="renderJugadora(&quot;evolucion&quot;)">Evolución</button>'+
+    '<button class="tab '+(tab==='historial'?'active':'')+'" onclick="renderJugadora(&quot;historial&quot;)">Historial</button></div>';
+
+  var content='';
   if(tab==='estado'){
     if(!ult){content='<div class="card" style="text-align:center;color:#888;padding:2rem">Sin mediciones cargadas</div>';}
     else{
-      const ma=eMA(ult.masa_adiposa),imo=eIMO(ult.imo),s6p=eS6P(ult.s6p);
-      content=`<div class="metric-grid">
-        <div class="metric-card" style="border-top:3px solid ${ma.h}"><div class="metric-label">Masa Adiposa</div><div class="metric-value">${f2(ult.masa_adiposa)}</div><div class="metric-label">kg</div><span class="metric-badge ${ma.c}">${ma.l}</span></div>
-        <div class="metric-card" style="border-top:3px solid ${imo.h}"><div class="metric-label">IMO</div><div class="metric-value">${f2(ult.imo)}</div><div class="metric-label">MM/MO</div><span class="metric-badge ${imo.c}">${imo.l}</span></div>
-        <div class="metric-card" style="border-top:3px solid ${s6p.h}"><div class="metric-label">S6P</div><div class="metric-value">${f0(ult.s6p)}</div><div class="metric-label">mm</div><span class="metric-badge ${s6p.c}">${s6p.l}</span></div>
-      </div>`;
+      var motiv=mensajeMotivacional(meds);
+      if(motiv)content+='<div class="motiv-card"><div class="motiv-title">'+motiv.t+'</div><div class="motiv-text">'+motiv.s+'</div></div>';
+      var ma=eMA(ult.masa_adiposa),imo=eIMO(ult.imo),s6p=eS6P(ult.s6p);
+      content+='<div class="metric-grid">'+
+        '<div class="metric-card" style="border-top:3px solid '+ma.h+'"><div class="metric-label">Masa Adiposa</div><div class="metric-value">'+f2(ult.masa_adiposa)+'</div><div class="metric-label">kg</div><span class="metric-badge '+ma.c+'">'+ma.l+'</span></div>'+
+        '<div class="metric-card" style="border-top:3px solid '+imo.h+'"><div class="metric-label">IMO</div><div class="metric-value">'+f2(ult.imo)+'</div><div class="metric-label">MM/MO</div><span class="metric-badge '+imo.c+'">'+imo.l+'</span></div>'+
+        '<div class="metric-card" style="border-top:3px solid '+s6p.h+'"><div class="metric-label">S6P</div><div class="metric-value">'+f0(ult.s6p)+'</div><div class="metric-label">mm</div><span class="metric-badge '+s6p.c+'">'+s6p.l+'</span></div>'+
+      '</div>';
       if(pen){
-        content+=`<div class="card"><div class="card-title">Vs medición anterior</div>`;
-        [[ult.masa_adiposa,pen.masa_adiposa,'Masa Adiposa',false,f2,'kg'],[ult.imo,pen.imo,'IMO',true,f2,''],[ult.s6p,pen.s6p,'S6P',false,f0,'mm']].forEach(([n,a,l,up,fmt,u])=>{
-          const d=n-a;const neu=Math.abs(d)<0.05;const ok=up?d>0:d<0;
-          const col=neu?'#888':ok?'#1F7A4A':'#9C0006';const bg=neu?'#f0f0f0':ok?'#C6EFCE':'#FFC7CE';
-          content+=`<div class="diff-row"><span style="font-size:13px;color:#555">${l}</span><div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:#aaa">${fmt(a)}${u}</span><span>→</span><span style="font-size:13px;font-weight:600">${fmt(n)}${u}</span><span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;color:${col};background:${bg}">${neu?'=':d>0?'▲':'▼'} ${Math.abs(d).toFixed(2)}</span></div></div>`;
-        });
-        content+=`</div>`;
+        content+='<div class="card"><div class="card-title">📊 Comparación con medición anterior</div>';
+        content+=bigDiff('Masa Adiposa',ult.masa_adiposa,pen.masa_adiposa,false,f2,' kg');
+        content+=bigDiff('IMO',ult.imo,pen.imo,true,f2,'');
+        content+=bigDiff('S6P',ult.s6p,pen.s6p,false,f0,' mm');
+        content+='</div>';
       }
       if(APP.jugObj){
-        const o=APP.jugObj;
-        content+=`<div class="card"><div class="card-title">Mis objetivos</div>`;
-        if(o.notas)content+=`<div style="margin-bottom:12px;padding:10px;background:#f5f7fa;border-radius:8px;font-size:13px;color:#555">📝 ${o.notas}</div>`;
-        [[o.ma_objetivo,ult.masa_adiposa,'MA objetivo','kg',false],[o.imo_objetivo,ult.imo,'IMO objetivo','',true],[o.s6p_objetivo,ult.s6p,'S6P objetivo','mm',false]].filter(x=>x[0]).forEach(([obj,actual,label,u,up])=>{
-          const pct=Math.min(100,actual/obj*100).toFixed(0);const ok=up?actual>=obj:actual<=obj;
-          content+=`<div class="progress-item"><div class="progress-label">${label}: ${obj}${u}</div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${ok?'#1F7A4A':'#9C6500'}"></div></div><div class="progress-val">${f1(actual)}</div></div>`;
+        var o=APP.jugObj;
+        content+='<div class="card"><div class="card-title">🎯 Mis objetivos</div>';
+        if(o.notas)content+='<div style="margin-bottom:12px;padding:10px;background:#f5f7fa;border-radius:8px;font-size:13px;color:#555">📝 '+o.notas+'</div>';
+        var objs=[[o.ma_objetivo,ult.masa_adiposa,'MA objetivo','kg',false],[o.imo_objetivo,ult.imo,'IMO objetivo','',true],[o.s6p_objetivo,ult.s6p,'S6P objetivo','mm',false]];
+        objs.forEach(function(row){
+          var obj=row[0],actual=row[1],label=row[2],u=row[3],up=row[4];
+          if(!obj)return;
+          var pct=Math.min(100,actual/obj*100).toFixed(0);
+          var ok=up?actual>=obj:actual<=obj;
+          var falta=Math.abs(actual-obj);
+          content+='<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px;color:#555">'+label+'</span><span style="font-size:12px;color:'+(ok?'#1F7A4A':'#9C6500')+';font-weight:600">'+(ok?'¡Logrado! ✅':'Faltan '+falta.toFixed(1)+u)+'</span></div>'+
+            '<div class="progress-track"><div class="progress-fill" style="width:'+pct+'%;background:'+(ok?'#1F7A4A':'#9C6500')+'"></div></div>'+
+            '<div style="display:flex;justify-content:space-between;margin-top:3px"><span style="font-size:11px;color:#aaa">Actual: '+f1(actual)+u+'</span><span style="font-size:11px;color:#aaa">Meta: '+obj+u+'</span></div></div>';
         });
-        content+=`</div>`;
+        content+='</div>';
       }
     }
   } else if(tab==='evolucion'){
     if(meds.length<2){content='<div class="card" style="text-align:center;color:#888;padding:2rem">Necesitás al menos 2 mediciones para ver la evolución.</div>';}
     else{
-      let rows='';
-      meds.forEach((m,i)=>{const prev=i>0?meds[i-1]:null;const ma=eMA(m.masa_adiposa),imo=eIMO(m.imo),s6p=eS6P(m.s6p);
-        rows+=`<tr><td>N${m.n_medicion}</td><td>${m.fecha||'—'}</td><td style="color:${ma.h};font-weight:600">${f2(m.masa_adiposa)}</td><td>${prev?diffArrow(m.masa_adiposa,prev.masa_adiposa,false):''}</td><td style="color:${imo.h};font-weight:600">${f2(m.imo)}</td><td>${prev?diffArrow(m.imo,prev.imo,true):''}</td><td style="color:${s6p.h};font-weight:600">${f0(m.s6p)}</td><td>${prev?diffArrow(m.s6p,prev.s6p,false):''}</td></tr>`;
+      content='<div class="card"><div class="card-title">📈 Tu evolución</div><div class="chart-box"><canvas id="jugChart"></canvas></div></div>';
+      var rows='';
+      meds.forEach(function(m,i){var prev=i>0?meds[i-1]:null;var ma=eMA(m.masa_adiposa),imo=eIMO(m.imo),s6p=eS6P(m.s6p);
+        rows+='<tr><td>N'+m.n_medicion+'</td><td>'+(m.fecha||'—')+'</td><td style="color:'+ma.h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td>'+(prev?diffArrow(m.masa_adiposa,prev.masa_adiposa,false):'')+'</td><td style="color:'+imo.h+';font-weight:600">'+f2(m.imo)+'</td><td>'+(prev?diffArrow(m.imo,prev.imo,true):'')+'</td><td style="color:'+s6p.h+';font-weight:600">'+f0(m.s6p)+'</td><td>'+(prev?diffArrow(m.s6p,prev.s6p,false):'')+'</td></tr>';
       });
-      content=`<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden;overflow-x:auto"><table class="data-table"><thead><tr><th>N°</th><th>Fecha</th><th>MA</th><th>Δ</th><th>IMO</th><th>Δ</th><th>S6P</th><th>Δ</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      content+='<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden;overflow-x:auto"><table class="data-table"><thead><tr><th>N°</th><th>Fecha</th><th>MA</th><th>Δ</th><th>IMO</th><th>Δ</th><th>S6P</th><th>Δ</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
     }
   } else {
-    const rows=[...meds].reverse().map(m=>`<tr><td>${m.fecha||'—'}</td><td style="font-weight:600">N${m.n_medicion}</td><td style="color:${eMA(m.masa_adiposa).h};font-weight:600">${f2(m.masa_adiposa)}</td><td style="color:${eIMO(m.imo).h};font-weight:600">${f2(m.imo)}</td><td style="color:${eS6P(m.s6p).h};font-weight:600">${f0(m.s6p)}</td></tr>`).join('');
-    content=`<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden"><table class="data-table"><thead><tr><th>Fecha</th><th>N°</th><th>MA (kg)</th><th>IMO</th><th>S6P (mm)</th></tr></thead><tbody>${rows||'<tr><td colspan=5 style="text-align:center;color:#aaa;padding:2rem">Sin mediciones</td></tr>'}</tbody></table></div>`;
+    var rows2=meds.slice().reverse().map(function(m){return '<tr><td>'+(m.fecha||'—')+'</td><td style="font-weight:600">N'+m.n_medicion+'</td><td style="color:'+eMA(m.masa_adiposa).h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td style="color:'+eIMO(m.imo).h+';font-weight:600">'+f2(m.imo)+'</td><td style="color:'+eS6P(m.s6p).h+';font-weight:600">'+f0(m.s6p)+'</td></tr>';}).join('');
+    content='<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden"><table class="data-table"><thead><tr><th>Fecha</th><th>N°</th><th>MA (kg)</th><th>IMO</th><th>S6P (mm)</th></tr></thead><tbody>'+(rows2||'<tr><td colspan=5 style="text-align:center;color:#aaa;padding:2rem">Sin mediciones</td></tr>')+'</tbody></table></div>';
   }
-  render(nav+`<div class="page">${header}${tabs}${content}</div>`);
+  render(nav+'<div class="page">'+header+tabs+content+'</div>');
+  if(tab==='evolucion'&&meds.length>=2)setTimeout(function(){buildChart('jugChart',meds);},50);
 }
 
 // ── ADMIN ─────────────────────────────────────────────────
 async function loadAdmin(){
-  const [{data:pl},{data:ju},{data:me}]=await Promise.all([
-    sb.from('planteles').select('*').order('id'),
-    sb.from('jugadoras').select('*,planteles(nombre)').eq('activa',true).order('nombre'),
-    sb.from('mediciones').select('*').order('n_medicion')
-  ]);
-  APP.planteles=pl||[];APP.jugs=ju||[];APP.meds=me||[];
-  if(pl?.length&&!APP.selPlantel)APP.selPlantel=pl[0];
+  var pl=await sb.from('planteles').select('*').order('id');
+  var ju=await sb.from('jugadoras').select('*,planteles(nombre)').eq('activa',true).order('nombre');
+  var me=await sb.from('mediciones').select('*').order('n_medicion');
+  APP.planteles=pl.data||[];APP.jugs=ju.data||[];APP.meds=me.data||[];
+  if(APP.planteles.length&&!APP.selPlantel)APP.selPlantel=APP.planteles[0];
 }
 
-function renderAdmin(tab='plantel'){
-  const nav=`<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div><div class="nav-title">Polital Admin</div><div class="nav-sub">Hola, Agus</div></div></div><button class="logout-btn" onclick="renderLogin()">Salir</button></nav>`;
-  const plantelBtns=APP.planteles.map(p=>`<button class="btn btn-sm ${p.id===APP.selPlantel?.id?'btn-primary':'btn-secondary'}" onclick="selPlantel(${p.id})">${p.nombre}</button>`).join('');
-  const tabs=`<div class="tabs"><button class="tab ${tab==='plantel'?'active':''}" onclick="renderAdmin('plantel')">Plantel</button><button class="tab ${tab==='alertas'?'active':''}" onclick="renderAdmin('alertas')">Alertas</button><button class="tab ${tab==='resumen'?'active':''}" onclick="renderAdmin('resumen')">Resumen</button></div>`;
-  
-  const jugs=APP.jugs.filter(j=>j.plantel_id===APP.selPlantel?.id);
-  const ultimas=jugs.map(j=>ultima(j.id)).filter(Boolean);
-  let content='';
-  
+function renderAdmin(tab){
+  tab=tab||'plantel';
+  var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div><div class="nav-title">Polital Admin</div><div class="nav-sub">Hola, Agus</div></div></div><button class="logout-btn" onclick="renderLogin()">Salir</button></nav>';
+  var plantelBtns=APP.planteles.map(function(p){return '<button class="btn btn-sm '+(p.id===APP.selPlantel.id?'btn-primary':'btn-secondary')+'" onclick="selPlantel('+p.id+')">'+p.nombre+'</button>';}).join('');
+  var tabs='<div class="tabs">'+
+    '<button class="tab '+(tab==='plantel'?'active':'')+'" onclick="renderAdmin(&quot;plantel&quot;)">Plantel</button>'+
+    '<button class="tab '+(tab==='alertas'?'active':'')+'" onclick="renderAdmin(&quot;alertas&quot;)">Alertas</button>'+
+    '<button class="tab '+(tab==='resumen'?'active':'')+'" onclick="renderAdmin(&quot;resumen&quot;)">Resumen</button>'+
+    '<button class="tab '+(tab==='comparar'?'active':'')+'" onclick="renderAdmin(&quot;comparar&quot;)">Comparar</button></div>';
+
+  var jugs=APP.jugs.filter(function(j){return j.plantel_id===APP.selPlantel.id;});
+  var ultimas=jugs.map(function(j){return ultima(j.id);}).filter(Boolean);
+  var content='';
+
   if(tab==='plantel'){
-    content=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;color:#888">${jugs.length} jugadoras</div><button class="btn btn-primary btn-sm" onclick="modalAddJug()">+ Jugadora</button></div>`;
-    jugs.forEach(j=>{
-      const u=ultima(j.id);const pr=prio(pts(u));
-      content+=`<div class="player-item" onclick="renderDetalle(${j.id})"><div style="display:flex;align-items:center;gap:12px"><div class="player-avatar">${ini(j.nombre)}</div><div><div style="font-size:14px;font-weight:500">${j.nombre}</div>${u?`<div style="font-size:12px;color:#888">MA: ${f2(u.masa_adiposa)} · IMO: ${f2(u.imo)} · S6P: ${f0(u.s6p)}</div>`:'<div style="font-size:12px;color:#aaa">Sin mediciones</div>'}</div></div>${u?`<span class="metric-badge ${pr.c}" style="font-size:11px">${pr.l}</span>`:''}</div>`;
-    });
+    var filtered=jugs.slice();
+    if(APP.search)filtered=filtered.filter(function(j){return j.nombre.toLowerCase().indexOf(APP.search.toLowerCase())>=0;});
+    if(APP.filter==='alertas')filtered=filtered.filter(function(j){return pts(ultima(j.id))>=2;});
+    else if(APP.filter==='sinmed')filtered=filtered.filter(function(j){return !ultima(j.id);});
+    content='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;color:#888">'+jugs.length+' jugadoras</div>'+
+      '<div style="display:flex;gap:8px"><button class="btn btn-secondary btn-sm" onclick="exportarPlantel()">📄 Exportar</button><button class="btn btn-primary btn-sm" onclick="modalAddJug()">+ Jugadora</button></div></div>';
+    content+='<input class="search-box" placeholder="🔍 Buscar jugadora..." value="'+APP.search+'" oninput="APP.search=this.value;renderAdminPlantelList()" id="searchBox"/>';
+    content+='<div class="filter-btns">'+
+      '<button class="filter-btn '+(APP.filter==='todos'?'active':'')+'" onclick="APP.filter=&quot;todos&quot;;renderAdmin(&quot;plantel&quot;)">Todas</button>'+
+      '<button class="filter-btn '+(APP.filter==='alertas'?'active':'')+'" onclick="APP.filter=&quot;alertas&quot;;renderAdmin(&quot;plantel&quot;)">Con alertas</button>'+
+      '<button class="filter-btn '+(APP.filter==='sinmed'?'active':'')+'" onclick="APP.filter=&quot;sinmed&quot;;renderAdmin(&quot;plantel&quot;)">Sin medición</button></div>';
+    content+='<div id="plantelList">'+renderPlantelListHtml(filtered)+'</div>';
   } else if(tab==='alertas'){
-    const con=ultimas.filter(m=>pts(m)>=2).length;
-    content=`<div style="font-size:13px;color:#888;margin-bottom:12px">${con} jugadoras requieren atención</div>`;
-    jugs.map(j=>{const u=ultima(j.id);return {j,u,p:pts(u)}}).filter(x=>x.u).sort((a,b)=>b.p-a.p).forEach(({j,u,p:p_})=>{
-      const pr=prio(p_);const dets=[];
-      if(u.masa_adiposa>22)dets.push(`MA alta (${f2(u.masa_adiposa)} kg)`);else if(u.masa_adiposa>18)dets.push(`MA revisar (${f2(u.masa_adiposa)} kg)`);
-      if(u.s6p>100)dets.push(`S6P alta (${f0(u.s6p)} mm)`);else if(u.s6p>80)dets.push(`S6P revisar (${f0(u.s6p)} mm)`);
-      if(u.imo<3.5)dets.push(`IMO bajo (${f2(u.imo)})`);else if(u.imo<3.8)dets.push(`IMO revisar (${f2(u.imo)})`);
-      content+=`<div class="alert-item" onclick="renderDetalle(${j.id})"><div><div style="font-size:14px;font-weight:500">${j.nombre}</div><div style="font-size:12px;color:#888;margin-top:3px">${dets.length?dets.join(' · '):'Sin alertas'}</div></div><span class="priority-badge ${pr.c}">${pr.l}</span></div>`;
+    var con=ultimas.filter(function(m){return pts(m)>=2;}).length;
+    content='<div style="font-size:13px;color:#888;margin-bottom:12px">'+con+' jugadoras requieren atención</div>';
+    var arr=jugs.map(function(j){return {j:j,u:ultima(j.id),p:pts(ultima(j.id))};}).filter(function(x){return x.u;}).sort(function(a,b){return b.p-a.p;});
+    arr.forEach(function(o){var j=o.j,u=o.u;var pr=prio(o.p);var dets=[];
+      if(u.masa_adiposa>22)dets.push('MA alta ('+f2(u.masa_adiposa)+' kg)');else if(u.masa_adiposa>18)dets.push('MA revisar ('+f2(u.masa_adiposa)+' kg)');
+      if(u.s6p>100)dets.push('S6P alta ('+f0(u.s6p)+' mm)');else if(u.s6p>80)dets.push('S6P revisar ('+f0(u.s6p)+' mm)');
+      if(u.imo<3.5)dets.push('IMO bajo ('+f2(u.imo)+')');else if(u.imo<3.8)dets.push('IMO revisar ('+f2(u.imo)+')');
+      content+='<div class="alert-item" onclick="renderDetalle('+j.id+')"><div><div style="font-size:14px;font-weight:500">'+j.nombre+'</div><div style="font-size:12px;color:#888;margin-top:3px">'+(dets.length?dets.join(' · '):'Sin alertas')+'</div></div><span class="priority-badge '+pr.c+'">'+pr.l+'</span></div>';
     });
-  } else {
-    const n=ultimas.length;
-    const avgMA=n?avg(ultimas.map(m=>m.masa_adiposa)).toFixed(1):'—';
-    const avgIMO=n?avg(ultimas.map(m=>m.imo)).toFixed(2):'—';
-    const avgS6P=n?avg(ultimas.map(m=>m.s6p)).toFixed(0):'—';
-    const con=ultimas.filter(m=>pts(m)>=2).length;
-    content=`<div class="stats-grid">
-      <div class="stat-card"><div class="stat-label">Jugadoras</div><div class="stat-value">${jugs.length}</div><div class="stat-sub">${APP.selPlantel?.nombre}</div></div>
-      <div class="stat-card"><div class="stat-label">Con alertas</div><div class="stat-value" style="color:${con>0?'#9C0006':'#1F7A4A'}">${con}</div><div class="stat-sub">requieren atención</div></div>
-      <div class="stat-card"><div class="stat-label">MA promedio</div><div class="stat-value">${avgMA}</div><div class="stat-sub">kg · obj ≤ 22</div></div>
-      <div class="stat-card"><div class="stat-label">IMO promedio</div><div class="stat-value">${avgIMO}</div><div class="stat-sub">obj ≥ 3.8</div></div>
-    </div>
-    <div class="stat-card" style="margin-bottom:1rem"><div class="stat-label">S6P promedio</div><div class="stat-value">${avgS6P} mm</div></div>
-    <div class="section-title">Estado del plantel</div>
-    ${[['MA en rango (≤22 kg)',ultimas.filter(m=>m.masa_adiposa<=22).length,'#1F7A4A'],['IMO óptimo (≥3.8)',ultimas.filter(m=>m.imo>=3.8).length,'#2E75B6'],['S6P óptimo (≤80 mm)',ultimas.filter(m=>m.s6p<=80).length,'#70AD47']].map(([l,c,col])=>`<div class="progress-item"><div class="progress-label">${l}</div><div class="progress-track"><div class="progress-fill" style="width:${n?(c/n*100).toFixed(0):0}%;background:${col}"></div></div><div class="progress-val" style="color:${col}">${c}/${n}</div></div>`).join('')}`;
+  } else if(tab==='resumen'){
+    var n=ultimas.length;
+    var avgMA=n?avg(ultimas.map(function(m){return m.masa_adiposa;})).toFixed(1):'—';
+    var avgIMO=n?avg(ultimas.map(function(m){return m.imo;})).toFixed(2):'—';
+    var avgS6P=n?avg(ultimas.map(function(m){return m.s6p;})).toFixed(0):'—';
+    var con2=ultimas.filter(function(m){return pts(m)>=2;}).length;
+    content='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-secondary btn-sm" onclick="exportarPlantel()">📄 Exportar informe</button></div>';
+    content+='<div class="stats-grid">'+
+      '<div class="stat-card"><div class="stat-label">Jugadoras</div><div class="stat-value">'+jugs.length+'</div><div class="stat-sub">'+APP.selPlantel.nombre+'</div></div>'+
+      '<div class="stat-card"><div class="stat-label">Con alertas</div><div class="stat-value" style="color:'+(con2>0?'#9C0006':'#1F7A4A')+'">'+con2+'</div><div class="stat-sub">requieren atención</div></div>'+
+      '<div class="stat-card"><div class="stat-label">MA promedio</div><div class="stat-value">'+avgMA+'</div><div class="stat-sub">kg · obj ≤ 22</div></div>'+
+      '<div class="stat-card"><div class="stat-label">IMO promedio</div><div class="stat-value">'+avgIMO+'</div><div class="stat-sub">obj ≥ 3.8</div></div></div>'+
+      '<div class="stat-card" style="margin-bottom:1rem"><div class="stat-label">S6P promedio</div><div class="stat-value">'+avgS6P+' mm</div></div>'+
+      '<div class="section-title">Estado del plantel</div>';
+    var estados=[['MA en rango (≤22 kg)',ultimas.filter(function(m){return m.masa_adiposa<=22;}).length,'#1F7A4A'],['IMO óptimo (≥3.8)',ultimas.filter(function(m){return m.imo>=3.8;}).length,'#2E75B6'],['S6P óptimo (≤80 mm)',ultimas.filter(function(m){return m.s6p<=80;}).length,'#70AD47']];
+    estados.forEach(function(e){content+='<div class="progress-item"><div class="progress-label">'+e[0]+'</div><div class="progress-track"><div class="progress-fill" style="width:'+(n?(e[1]/n*100).toFixed(0):0)+'%;background:'+e[2]+'"></div></div><div class="progress-val" style="color:'+e[2]+'">'+e[1]+'/'+n+'</div></div>';});
+  } else if(tab==='comparar'){
+    content='<div class="card"><div class="card-title">Comparar jugadoras del plantel</div><div class="chart-box"><canvas id="cmpChart"></canvas></div></div>';
+    content+='<div style="font-size:12px;color:#888;margin-bottom:8px">Ordenadas por S6P (de mayor a menor)</div>';
+    var arr2=jugs.map(function(j){return {j:j,u:ultima(j.id)};}).filter(function(x){return x.u;}).sort(function(a,b){return b.u.s6p-a.u.s6p;});
+    arr2.forEach(function(o){var mx=Math.max.apply(null,arr2.map(function(x){return x.u.s6p;}));
+      content+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="width:130px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+o.j.nombre+'</div><div style="flex:1;height:20px;background:#f0f0f0;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+(o.u.s6p/mx*100)+'%;background:'+eS6P(o.u.s6p).h+';border-radius:4px"></div></div><div style="width:50px;text-align:right;font-size:12px;font-weight:600;color:'+eS6P(o.u.s6p).h+'">'+f0(o.u.s6p)+'</div></div>';
+    });
   }
-  render(nav+`<div class="page"><div class="plantel-btns">${plantelBtns}</div>${tabs}${content}</div>`);
+  render(nav+'<div class="page"><div class="plantel-btns">'+plantelBtns+'</div>'+tabs+content+'</div>');
+  if(tab==='comparar')setTimeout(function(){buildCompareChart(jugs);},50);
 }
 
-function selPlantel(id){APP.selPlantel=APP.planteles.find(p=>p.id===id);renderAdmin();}
-
-// ── DETALLE JUGADORA ──────────────────────────────────────
-function renderDetalle(jid){
-  APP.selJug=APP.jugs.find(j=>j.id===jid);
-  const j=APP.selJug;const meds=medsJ(jid);const ult=meds.length?meds[meds.length-1]:null;
-  const nav=`<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div class="nav-title" style="color:#fff">Admin</div></div><button class="logout-btn" onclick="renderLogin()">Salir</button></nav>`;
-  let content=`<button class="back-btn" onclick="renderAdmin()">← Volver al plantel</button>
-  <div style="display:flex;align-items:center;gap:14px;margin-bottom:1rem">
-    <div class="player-avatar" style="width:48px;height:48px;font-size:18px">${ini(j.nombre)}</div>
-    <div style="flex:1"><div style="font-size:20px;font-weight:600">${j.nombre}</div><div style="font-size:13px;color:#888">${j.planteles?.nombre} · @${j.usuario}</div></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-secondary btn-sm" onclick="modalAddMed(${j.id})">+ Medición</button><button class="btn btn-secondary btn-sm" onclick="modalObj(${j.id})">Objetivos</button></div>
-  </div>`;
-  if(ult){
-    const ma=eMA(ult.masa_adiposa),imo=eIMO(ult.imo),s6p=eS6P(ult.s6p);
-    content+=`<div class="metric-grid">
-      <div class="metric-card" style="border-top:3px solid ${ma.h}"><div class="metric-label">Masa Adiposa</div><div class="metric-value">${f2(ult.masa_adiposa)}</div><span class="metric-badge ${ma.c}">${ma.l}</span></div>
-      <div class="metric-card" style="border-top:3px solid ${imo.h}"><div class="metric-label">IMO</div><div class="metric-value">${f2(ult.imo)}</div><span class="metric-badge ${imo.c}">${imo.l}</span></div>
-      <div class="metric-card" style="border-top:3px solid ${s6p.h}"><div class="metric-label">S6P</div><div class="metric-value">${f0(ult.s6p)}</div><span class="metric-badge ${s6p.c}">${s6p.l}</span></div>
-    </div>`;
-  }
-  const rows=[...meds].reverse().map((m,i,arr)=>{const prev=arr[i+1];
-    return `<tr><td>${m.fecha||'—'}</td><td style="font-weight:600">N${m.n_medicion}</td><td>${m.peso||'—'}</td>
-      <td style="color:${eMA(m.masa_adiposa).h};font-weight:600">${f2(m.masa_adiposa)}</td><td>${prev?diffArrow(m.masa_adiposa,prev.masa_adiposa,false):''}</td>
-      <td style="color:${eIMO(m.imo).h};font-weight:600">${f2(m.imo)}</td><td>${prev?diffArrow(m.imo,prev.imo,true):''}</td>
-      <td style="color:${eS6P(m.s6p).h};font-weight:600">${f0(m.s6p)}</td><td>${prev?diffArrow(m.s6p,prev.s6p,false):''}</td>
-    </tr>`;
+function renderPlantelListHtml(jugs){
+  if(!jugs.length)return '<div style="text-align:center;color:#aaa;padding:2rem">No hay jugadoras que coincidan</div>';
+  return jugs.map(function(j){var u=ultima(j.id);var pr=prio(pts(u));
+    return '<div class="player-item" onclick="renderDetalle('+j.id+')"><div style="display:flex;align-items:center;gap:12px"><div class="player-avatar">'+ini(j.nombre)+'</div><div><div style="font-size:14px;font-weight:500">'+j.nombre+'</div>'+(u?'<div style="font-size:12px;color:#888">MA: '+f2(u.masa_adiposa)+' · IMO: '+f2(u.imo)+' · S6P: '+f0(u.s6p)+'</div>':'<div style="font-size:12px;color:#aaa">Sin mediciones</div>')+'</div></div>'+(u?'<span class="metric-badge '+pr.c+'" style="font-size:11px">'+pr.l+'</span>':'')+'</div>';
   }).join('');
-  content+=`<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden;overflow-x:auto;margin-top:1rem"><table class="data-table"><thead><tr><th>Fecha</th><th>N°</th><th>Peso</th><th>MA</th><th>Δ</th><th>IMO</th><th>Δ</th><th>S6P</th><th>Δ</th></tr></thead><tbody>${rows||'<tr><td colspan=9 style="text-align:center;color:#aaa;padding:2rem">Sin mediciones</td></tr>'}</tbody></table></div>`;
-  render(nav+`<div class="page">${content}</div>`);
+}
+function renderAdminPlantelList(){
+  var jugs=APP.jugs.filter(function(j){return j.plantel_id===APP.selPlantel.id;});
+  if(APP.search)jugs=jugs.filter(function(j){return j.nombre.toLowerCase().indexOf(APP.search.toLowerCase())>=0;});
+  if(APP.filter==='alertas')jugs=jugs.filter(function(j){return pts(ultima(j.id))>=2;});
+  else if(APP.filter==='sinmed')jugs=jugs.filter(function(j){return !ultima(j.id);});
+  var el=$('plantelList');if(el)el.innerHTML=renderPlantelListHtml(jugs);
+}
+
+function buildCompareChart(jugs){
+  var ctx=$('cmpChart');if(!ctx)return;
+  var arr=jugs.map(function(j){return {j:j,u:ultima(j.id)};}).filter(function(x){return x.u;}).sort(function(a,b){return b.u.s6p-a.u.s6p;});
+  var ch=new Chart(ctx,{type:'bar',data:{labels:arr.map(function(x){return x.j.nombre.split(' ')[0];}),datasets:[
+    {label:'MA',data:arr.map(function(x){return x.u.masa_adiposa;}),backgroundColor:'#C55A11'},
+    {label:'S6P/10',data:arr.map(function(x){return x.u.s6p/10;}),backgroundColor:'#70AD47'}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},scales:{x:{ticks:{font:{size:9},maxRotation:90,minRotation:45}}}}});
+  APP.charts.push(ch);
+}
+
+function selPlantel(id){APP.selPlantel=APP.planteles.find(function(p){return p.id===id;});APP.search='';APP.filter='todos';renderAdmin();}
+
+// ── DETALLE JUGADORA (admin) ──────────────────────────────
+function renderDetalle(jid){
+  APP.selJug=APP.jugs.find(function(j){return j.id===jid;});
+  var j=APP.selJug;var meds=medsJ(jid);var ult=meds.length?meds[meds.length-1]:null;
+  var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div class="nav-title" style="color:#fff">Admin</div></div><button class="logout-btn" onclick="renderLogin()">Salir</button></nav>';
+  var content='<button class="back-btn" onclick="renderAdmin()">← Volver al plantel</button>'+
+    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:1rem"><div class="player-avatar" style="width:48px;height:48px;font-size:18px">'+ini(j.nombre)+'</div>'+
+    '<div style="flex:1"><div style="font-size:20px;font-weight:600">'+j.nombre+'</div><div style="font-size:13px;color:#888">'+(j.planteles?j.planteles.nombre:'')+' · @'+j.usuario+'</div></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" onclick="modalAddMed('+j.id+')">+ Medición</button><button class="btn btn-secondary btn-sm" onclick="modalObj('+j.id+')">Objetivos</button><button class="btn btn-secondary btn-sm" onclick="modalNota('+j.id+')">📝 Nota</button><button class="btn btn-secondary btn-sm" onclick="exportarJugadora('+j.id+')">📄 PDF</button></div></div>';
+  if(ult){
+    var ma=eMA(ult.masa_adiposa),imo=eIMO(ult.imo),s6p=eS6P(ult.s6p);
+    content+='<div class="metric-grid">'+
+      '<div class="metric-card" style="border-top:3px solid '+ma.h+'"><div class="metric-label">Masa Adiposa</div><div class="metric-value">'+f2(ult.masa_adiposa)+'</div><span class="metric-badge '+ma.c+'">'+ma.l+'</span></div>'+
+      '<div class="metric-card" style="border-top:3px solid '+imo.h+'"><div class="metric-label">IMO</div><div class="metric-value">'+f2(ult.imo)+'</div><span class="metric-badge '+imo.c+'">'+imo.l+'</span></div>'+
+      '<div class="metric-card" style="border-top:3px solid '+s6p.h+'"><div class="metric-label">S6P</div><div class="metric-value">'+f0(ult.s6p)+'</div><span class="metric-badge '+s6p.c+'">'+s6p.l+'</span></div></div>';
+  }
+  if(j.notas)content+='<div class="card" style="background:#FFF9E6"><div class="card-title">📝 Nota privada</div><div style="font-size:13px;color:#555">'+j.notas+'</div></div>';
+  if(meds.length>=2)content+='<div class="card"><div class="card-title">📈 Evolución</div><div class="chart-box"><canvas id="detChart"></canvas></div></div>';
+  var rows=meds.slice().reverse().map(function(m,i,arr){var prev=arr[i+1];
+    return '<tr><td>'+(m.fecha||'—')+'</td><td style="font-weight:600">N'+m.n_medicion+'</td><td>'+(m.peso||'—')+'</td>'+
+      '<td style="color:'+eMA(m.masa_adiposa).h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td>'+(prev?diffArrow(m.masa_adiposa,prev.masa_adiposa,false):'')+'</td>'+
+      '<td style="color:'+eIMO(m.imo).h+';font-weight:600">'+f2(m.imo)+'</td><td>'+(prev?diffArrow(m.imo,prev.imo,true):'')+'</td>'+
+      '<td style="color:'+eS6P(m.s6p).h+';font-weight:600">'+f0(m.s6p)+'</td><td>'+(prev?diffArrow(m.s6p,prev.s6p,false):'')+'</td></tr>';
+  }).join('');
+  content+='<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden;overflow-x:auto;margin-top:1rem"><table class="data-table"><thead><tr><th>Fecha</th><th>N°</th><th>Peso</th><th>MA</th><th>Δ</th><th>IMO</th><th>Δ</th><th>S6P</th><th>Δ</th></tr></thead><tbody>'+(rows||'<tr><td colspan=9 style="text-align:center;color:#aaa;padding:2rem">Sin mediciones</td></tr>')+'</tbody></table></div>';
+  render(nav+'<div class="page">'+content+'</div>');
+  if(meds.length>=2)setTimeout(function(){buildChart('detChart',meds);},50);
 }
 
 // ── MODALES ───────────────────────────────────────────────
 function showModal(title,body,footer){
-  const existing=$('modal-overlay');
-  if(existing)existing.remove();
-  const div=document.createElement('div');
+  var ex=$('modal-overlay');if(ex)ex.remove();
+  var div=document.createElement('div');
   div.id='modal-overlay';div.className='modal-overlay';
-  div.onclick=e=>{if(e.target===div)div.remove();};
-  div.innerHTML=`<div class="modal"><div class="modal-title">${title}</div><div id="modal-body">${body}</div><div class="modal-footer">${footer}</div></div>`;
+  div.onclick=function(e){if(e.target===div)div.remove();};
+  div.innerHTML='<div class="modal"><div class="modal-title">'+title+'</div><div id="modal-body">'+body+'</div><div class="modal-footer">'+footer+'</div></div>';
   document.body.appendChild(div);
 }
-function closeModal(){const m=$('modal-overlay');if(m)m.remove();}
+function closeModal(){var m=$('modal-overlay');if(m)m.remove();}
+
+function modalCambiarPass(){
+  showModal('Cambiar contraseña',
+    '<div class="form-group"><label>Contraseña actual</label><input id="cp-act" type="password"/></div>'+
+    '<div class="form-group"><label>Nueva contraseña</label><input id="cp-new" type="password"/></div>'+
+    '<div class="form-group"><label>Repetir nueva</label><input id="cp-rep" type="password"/></div>'+
+    '<div id="cp-err"></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="savePass()">Guardar</button>');
+}
+async function savePass(){
+  var act=$('cp-act')?$('cp-act').value:'';var nw=$('cp-new')?$('cp-new').value:'';var rep=$('cp-rep')?$('cp-rep').value:'';
+  var err=$('cp-err');
+  if(!act||!nw||!rep){err.innerHTML='<div class="msg-error">Completá todos los campos</div>';return;}
+  if(nw!==rep){err.innerHTML='<div class="msg-error">Las contraseñas no coinciden</div>';return;}
+  if(nw.length<6){err.innerHTML='<div class="msg-error">Mínimo 6 caracteres</div>';return;}
+  var r=await sb.from('jugadoras').select('password_hash').eq('id',APP.session.id).single();
+  if(r.error||!r.data){err.innerHTML='<div class="msg-error">Error al verificar</div>';return;}
+  if(r.data.password_hash!==act){err.innerHTML='<div class="msg-error">La contraseña actual es incorrecta</div>';return;}
+  var u=await sb.from('jugadoras').update({password_hash:nw}).eq('id',APP.session.id);
+  if(u.error){err.innerHTML='<div class="msg-error">'+u.error.message+'</div>';return;}
+  closeModal();alert('¡Contraseña actualizada!');
+}
 
 function modalAddJug(){
-  const opts=APP.planteles.map(p=>`<option value="${p.id}"${p.id===APP.selPlantel?.id?' selected':''}>${p.nombre}</option>`).join('');
-  showModal('Nueva jugadora',`
-    <div class="form-group"><label>Nombre completo</label><input id="mn" placeholder="Ej: María García"/></div>
-    <div class="form-group"><label>Plantel</label><select id="mp">${opts}</select></div>
-    <div class="form-row"><div class="form-group"><label>Usuario</label><input id="mu" placeholder="maria.garcia"/></div><div class="form-group"><label>Contraseña</label><input id="mw" placeholder="••••••••"/></div></div>
-    <div id="merr"></div>`,
-    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveJug()">Guardar</button>`);
+  var opts=APP.planteles.map(function(p){return '<option value="'+p.id+'"'+(p.id===APP.selPlantel.id?' selected':'')+'>'+p.nombre+'</option>';}).join('');
+  showModal('Nueva jugadora',
+    '<div class="form-group"><label>Nombre completo</label><input id="mn" placeholder="Ej: María García"/></div>'+
+    '<div class="form-group"><label>Plantel</label><select id="mp">'+opts+'</select></div>'+
+    '<div class="form-row"><div class="form-group"><label>Usuario</label><input id="mu" placeholder="maria.garcia"/></div><div class="form-group"><label>Contraseña</label><input id="mw" placeholder="clave"/></div></div>'+
+    '<div id="merr"></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveJug()">Guardar</button>');
 }
 async function saveJug(){
-  const n=$('mn')?.value?.trim(),p=parseInt($('mp')?.value),u=$('mu')?.value?.toLowerCase()?.trim(),w=$('mw')?.value;
+  var n=$('mn')?$('mn').value.trim():'';var p=parseInt($('mp')?$('mp').value:0);var u=$('mu')?$('mu').value.toLowerCase().trim():'';var w=$('mw')?$('mw').value:'';
   if(!n||!p||!u||!w){$('merr').innerHTML='<div class="msg-error">Completá todos los campos</div>';return;}
-  const {error}=await sb.from('jugadoras').insert({nombre:n,plantel_id:p,usuario:u,password_hash:w,activa:true});
-  if(error){$('merr').innerHTML=`<div class="msg-error">${error.message}</div>`;return;}
+  var r=await sb.from('jugadoras').insert({nombre:n,plantel_id:p,usuario:u,password_hash:w,activa:true});
+  if(r.error){$('merr').innerHTML='<div class="msg-error">'+r.error.message+'</div>';return;}
   closeModal();await loadAdmin();renderAdmin();
 }
 
 function modalAddMed(jid){
-  const nextN=medsJ(jid).length+1;
-  showModal(`Nueva medición — ${APP.selJug?.nombre}`,`
-    <div class="form-row"><div class="form-group"><label>Fecha</label><input id="mf" placeholder="DD/MM/AAAA"/></div><div class="form-group"><label>N° medición</label><input id="mn2" type="number" value="${nextN}"/></div></div>
-    <div class="form-row"><div class="form-group"><label>Peso (kg)</label><input id="mpe" type="number" step="0.01" placeholder="0.00"/></div><div class="form-group"><label>Talla (cm)</label><input id="mta" type="number" step="0.1" placeholder="0.0"/></div></div>
-    <div class="form-row"><div class="form-group"><label>Masa Adiposa (kg)</label><input id="mma" type="number" step="0.001" placeholder="0.000"/></div><div class="form-group"><label>Masa Muscular (kg)</label><input id="mmm" type="number" step="0.001" placeholder="0.000"/></div></div>
-    <div class="form-row"><div class="form-group"><label>Masa Ósea (kg)</label><input id="mmo" type="number" step="0.001" placeholder="0.000"/></div><div class="form-group"><label>S6P (mm)</label><input id="ms6" type="number" step="0.1" placeholder="0.0"/></div></div>
-    <div style="background:#f5f7fa;border-radius:8px;padding:10px 14px;font-size:13px;color:#555">💡 IMO se calcula solo (MM ÷ MO)</div>
-    <div id="merr"></div>`,
-    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveMed(${jid})">Guardar</button>`);
+  var nextN=medsJ(jid).length+1;
+  showModal('Nueva medición — '+APP.selJug.nombre,
+    '<div class="form-row"><div class="form-group"><label>Fecha</label><input id="mf" placeholder="DD/MM/AAAA"/></div><div class="form-group"><label>N° medición</label><input id="mn2" type="number" value="'+nextN+'"/></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Peso (kg)</label><input id="mpe" type="number" step="0.01"/></div><div class="form-group"><label>Talla (cm)</label><input id="mta" type="number" step="0.1"/></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Masa Adiposa (kg)</label><input id="mma" type="number" step="0.001"/></div><div class="form-group"><label>Masa Muscular (kg)</label><input id="mmm" type="number" step="0.001"/></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Masa Ósea (kg)</label><input id="mmo" type="number" step="0.001"/></div><div class="form-group"><label>S6P (mm)</label><input id="ms6" type="number" step="0.1"/></div></div>'+
+    '<div style="background:#f5f7fa;border-radius:8px;padding:10px 14px;font-size:13px;color:#555">💡 IMO se calcula solo (MM ÷ MO)</div>'+
+    '<div id="merr"></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveMed('+jid+')">Guardar</button>');
 }
 async function saveMed(jid){
-  const ma=parseFloat($('mma')?.value),mm=parseFloat($('mmm')?.value),mo=parseFloat($('mmo')?.value),s6p=parseFloat($('ms6')?.value);
+  var ma=parseFloat($('mma').value),mm=parseFloat($('mmm').value),mo=parseFloat($('mmo').value),s6p=parseFloat($('ms6').value);
   if(!ma||!mm||!mo||!s6p){$('merr').innerHTML='<div class="msg-error">Completá MA, MM, MO y S6P</div>';return;}
-  const imo=mo>0?Math.round(mm/mo*100)/100:0;
-  const {error}=await sb.from('mediciones').insert({jugadora_id:jid,fecha:$('mf')?.value||'—',n_medicion:parseInt($('mn2')?.value),peso:parseFloat($('mpe')?.value)||null,talla:parseFloat($('mta')?.value)||null,masa_adiposa:ma,masa_muscular:mm,masa_osea:mo,s6p,imo});
-  if(error){$('merr').innerHTML=`<div class="msg-error">${error.message}</div>`;return;}
+  var imo=mo>0?Math.round(mm/mo*100)/100:0;
+  var r=await sb.from('mediciones').insert({jugadora_id:jid,fecha:$('mf').value||'—',n_medicion:parseInt($('mn2').value),peso:parseFloat($('mpe').value)||null,talla:parseFloat($('mta').value)||null,masa_adiposa:ma,masa_muscular:mm,masa_osea:mo,s6p:s6p,imo:imo});
+  if(r.error){$('merr').innerHTML='<div class="msg-error">'+r.error.message+'</div>';return;}
   closeModal();await loadAdmin();renderDetalle(jid);
 }
 
 async function modalObj(jid){
-  const {data:o}=await sb.from('objetivos').select('*').eq('jugadora_id',jid).single();
-  showModal(`Objetivos — ${APP.selJug?.nombre}`,`
-    <div class="form-row"><div class="form-group"><label>MA objetivo (kg)</label><input id="oma" type="number" step="0.01" value="${o?.ma_objetivo||''}" placeholder="Ej: 18"/></div><div class="form-group"><label>IMO objetivo</label><input id="oimo" type="number" step="0.01" value="${o?.imo_objetivo||''}" placeholder="Ej: 4.0"/></div></div>
-    <div class="form-group"><label>S6P objetivo (mm)</label><input id="os6" type="number" step="0.1" value="${o?.s6p_objetivo||''}" placeholder="Ej: 80"/></div>
-    <div class="form-group"><label>Notas / indicaciones</label><textarea id="onot" rows="3" style="resize:vertical" placeholder="Indicaciones personalizadas...">${o?.notas||''}</textarea></div>`,
-    `<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveObj(${jid},${o?1:0})">Guardar</button>`);
+  var o=await sb.from('objetivos').select('*').eq('jugadora_id',jid).single();
+  var od=o.data;
+  showModal('Objetivos — '+APP.selJug.nombre,
+    '<div class="form-row"><div class="form-group"><label>MA objetivo (kg)</label><input id="oma" type="number" step="0.01" value="'+(od&&od.ma_objetivo?od.ma_objetivo:'')+'"/></div><div class="form-group"><label>IMO objetivo</label><input id="oimo" type="number" step="0.01" value="'+(od&&od.imo_objetivo?od.imo_objetivo:'')+'"/></div></div>'+
+    '<div class="form-group"><label>S6P objetivo (mm)</label><input id="os6" type="number" step="0.1" value="'+(od&&od.s6p_objetivo?od.s6p_objetivo:'')+'"/></div>'+
+    '<div class="form-group"><label>Notas / indicaciones (las ve la jugadora)</label><textarea id="onot" rows="3" style="resize:vertical">'+(od&&od.notas?od.notas:'')+'</textarea></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveObj('+jid+','+(od?1:0)+')">Guardar</button>');
 }
 async function saveObj(jid,exists){
-  const d={jugadora_id:jid,ma_objetivo:parseFloat($('oma')?.value)||null,imo_objetivo:parseFloat($('oimo')?.value)||null,s6p_objetivo:parseFloat($('os6')?.value)||null,notas:$('onot')?.value||null,updated_at:new Date().toISOString()};
+  var d={jugadora_id:jid,ma_objetivo:parseFloat($('oma').value)||null,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString()};
   if(exists)await sb.from('objetivos').update(d).eq('jugadora_id',jid);
   else await sb.from('objetivos').insert(d);
-  closeModal();
+  closeModal();alert('¡Objetivos guardados!');
 }
+
+function modalNota(jid){
+  var j=APP.jugs.find(function(x){return x.id===jid;});
+  showModal('Nota privada — '+j.nombre,
+    '<div style="font-size:12px;color:#888;margin-bottom:8px">Esta nota solo la ves vos (no la jugadora)</div>'+
+    '<div class="form-group"><textarea id="nota" rows="4" style="resize:vertical" placeholder="Observaciones internas...">'+(j.notas||'')+'</textarea></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveNota('+jid+')">Guardar</button>');
+}
+async function saveNota(jid){
+  await sb.from('jugadoras').update({notas:$('nota').value||null}).eq('id',jid);
+  closeModal();await loadAdmin();renderDetalle(jid);
+}
+
+// ── EXPORTAR ──────────────────────────────────────────────
+function exportarJugadora(jid){
+  var j=APP.jugs.find(function(x){return x.id===jid;});
+  var meds=medsJ(jid);
+  window.print();
+}
+function exportarPlantel(){
+  window.print();
+}
+
 
 // ── INIT ──────────────────────────────────────────────────
 renderLogin();
