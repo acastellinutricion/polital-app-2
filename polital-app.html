@@ -179,7 +179,7 @@ function renderLogin(mode='jugadora',err=''){
       <div class="form-group"><label>Contraseña</label><input id="lp" type="password" placeholder="••••••••"/></div>
       <button class="btn btn-primary btn-full" onclick="doLogin('${mode}')">Ingresar</button>
       <div style="text-align:center;font-size:13px;color:#888;margin-top:1rem;padding-top:1rem;border-top:1px solid #eee">
-        ${mode==='jugadora'?'¿Sos el entrenador? <a href="#" onclick="renderLogin('admin');return false;" style="color:#2E75B6;font-weight:500">Acceso admin</a>':'¿Sos jugadora? <a href="#" onclick="renderLogin('jugadora');return false;" style="color:#2E75B6;font-weight:500">Volver</a>'}
+        ${mode==='jugadora'?'¿Sos el entrenador? <a href="#" onclick="renderLogin(&quot;admin&quot;);return false;" style="color:#2E75B6;font-weight:500">Acceso admin</a>':'¿Sos jugadora? <a href="#" onclick="renderLogin(&quot;jugadora&quot;);return false;" style="color:#2E75B6;font-weight:500">Volver</a>'}
       </div>
     </div>
   </div>`);
