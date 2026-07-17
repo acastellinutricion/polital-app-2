@@ -7,6 +7,7 @@
 <title>Polital</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f7fa;color:#1a1a2e;min-height:100vh}
@@ -174,6 +175,17 @@ const sb={
   }
 };
 
+// ── STORAGE (PDF planes) ──────────────────────────────────
+async function subirArchivoStorage(bucket,path,file){
+  try{
+    const url=SB_URL+'/storage/v1/object/'+bucket+'/'+encodeURIComponent(path);
+    const r=await fetch(url,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'x-upsert':'true','Content-Type':file.type||'application/pdf'},body:file});
+    if(!r.ok){return {error:{message:await r.text()}};}
+    const pub=SB_URL+'/storage/v1/object/public/'+bucket+'/'+encodeURIComponent(path);
+    return {url:pub,error:null};
+  }catch(e){return {error:{message:e.message}};}
+}
+
 // ── HELPERS ───────────────────────────────────────────────
 const $=id=>document.getElementById(id);
 const ini=n=>n.split(' ').map(x=>x[0]).slice(0,2).join('');
@@ -181,39 +193,67 @@ const f2=v=>v!=null?parseFloat(v).toFixed(2):'—';
 const f1=v=>v!=null?parseFloat(v).toFixed(1):'—';
 const f0=v=>v!=null?parseFloat(v).toFixed(0):'—';
 const avg=arr=>arr.length?arr.reduce((s,x)=>s+x,0)/arr.length:0;
-function eMA(v){return v<=18?{l:'OK',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v<=22?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'REDUCIR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
-function eIMO(v){return v>=3.8?{l:'OPTIMO',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v>=3.5?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'MEJORAR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
-function eS6P(v){return v<=80?{l:'OPTIMO',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v<=100?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'REDUCIR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
-function pts(m){if(!m)return 0;let p=0;if(m.masa_adiposa>22)p+=2;else if(m.masa_adiposa>18)p+=1;if(m.s6p>100)p+=2;else if(m.s6p>80)p+=1;if(m.imo<3.5)p+=2;else if(m.imo<3.8)p+=1;return p;}
+const BAREMO_DEFAULT={ma_optimo:18,ma_revisar:22,imo_optimo:3.8,imo_revisar:3.5,s6p_optimo:80,s6p_revisar:100};
+function baremoDe(deporte){return (APP.baremos&&APP.baremos[deporte])||BAREMO_DEFAULT;}
+function eMA(v,deporte){var b=baremoDe(deporte);return v<=b.ma_optimo?{l:'OK',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v<=b.ma_revisar?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'REDUCIR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
+function eIMO(v,deporte){var b=baremoDe(deporte);return v>=b.imo_optimo?{l:'OPTIMO',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v>=b.imo_revisar?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'MEJORAR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
+function eS6P(v,deporte){var b=baremoDe(deporte);return v<=b.s6p_optimo?{l:'OPTIMO',c:'badge-green',h:'#1F7A4A',b:'#C6EFCE'}:v<=b.s6p_revisar?{l:'REVISAR',c:'badge-yellow',h:'#9C6500',b:'#FFEB9C'}:{l:'REDUCIR',c:'badge-red',h:'#9C0006',b:'#FFC7CE'}}
+function pts(m,deporte){if(!m)return 0;var b=baremoDe(deporte);let p=0;if(m.masa_adiposa>b.ma_revisar)p+=2;else if(m.masa_adiposa>b.ma_optimo)p+=1;if(m.s6p>b.s6p_revisar)p+=2;else if(m.s6p>b.s6p_optimo)p+=1;if(m.imo<b.imo_revisar)p+=2;else if(m.imo<b.imo_optimo)p+=1;return p;}
 function prio(p){return p>=5?{l:'URGENTE',c:'badge-red'}:p>=3?{l:'ALTA',c:'badge-red'}:p>=2?{l:'MEDIA',c:'badge-yellow'}:p>=1?{l:'BAJA',c:'badge-yellow'}:{l:'OK',c:'badge-green'}}
 function ultima(jid){const m=APP.meds.filter(x=>x.jugadora_id===jid);return m.length?m.reduce((a,b)=>a.n_medicion>b.n_medicion?a:b):null}
 function medsJ(jid){return APP.meds.filter(x=>x.jugadora_id===jid).sort((a,b)=>a.n_medicion-b.n_medicion)}
+function calcEdad(fechaNac){
+  if(!fechaNac)return null;
+  var d=null;
+  var m=String(fechaNac).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)d=new Date(parseInt(m[1]),parseInt(m[2])-1,parseInt(m[3]));
+  else{var m2=String(fechaNac).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m2)d=new Date(parseInt(m2[3]),parseInt(m2[2])-1,parseInt(m2[1]));}
+  if(!d||isNaN(d.getTime()))return null;
+  var hoy=new Date();
+  var edad=hoy.getFullYear()-d.getFullYear();
+  var mDiff=hoy.getMonth()-d.getMonth();
+  if(mDiff<0||(mDiff===0&&hoy.getDate()<d.getDate()))edad--;
+  return edad;
+}
+function diasDesde(fechaStr){
+  if(!fechaStr||fechaStr==='—'||fechaStr==='S/D')return null;
+  var m=fechaStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(!m)return null;
+  var d=new Date(parseInt(m[3]),parseInt(m[2])-1,parseInt(m[1]));
+  if(isNaN(d.getTime()))return null;
+  return Math.round((new Date()-d)/86400000);
+}
 
-let APP={session:null,planteles:[],jugs:[],meds:[],selPlantel:null,selJug:null,jugMeds:[],jugObj:null,search:'',filter:'todos',charts:[]};
+let APP={session:null,planteles:[],jugs:[],meds:[],baremos:{},selPlantel:null,selJug:null,selJugObj:null,jugMeds:[],jugObj:null,search:'',filter:'todos',orderAntig:false,charts:[]};
 function render(html){destroyCharts();$('app').innerHTML=html;}
 function destroyCharts(){APP.charts.forEach(c=>{try{c.destroy()}catch(e){}});APP.charts=[];}
 
 // ── CHART BUILDER ─────────────────────────────────────────
 // Un grafico separado por cada masa/indicador (mas claro que uno solo con todo mezclado)
 var CHART_SPECS=[
-  {key:'masa_adiposa',suf:'MA',label:'Masa Adiposa (kg)',color:'#C55A11'},
-  {key:'imo',suf:'IMO',label:'IMO (MM/MO)',color:'#2E75B6'},
-  {key:'s6p',suf:'S6P',label:'S6P (mm)',color:'#70AD47'}
+  {key:'masa_adiposa',objKey:'ma_objetivo',suf:'MA',label:'Masa Adiposa (kg)',color:'#C55A11'},
+  {key:'imo',objKey:'imo_objetivo',suf:'IMO',label:'IMO (MM/MO)',color:'#2E75B6'},
+  {key:'s6p',objKey:'s6p_objetivo',suf:'S6P',label:'S6P (mm)',color:'#70AD47'}
 ];
 function chartBoxesHtml(prefix,titulo){
   return CHART_SPECS.map(function(s){
     return '<div class="card"><div class="card-title">'+titulo+' — '+s.label+'</div><div class="chart-box" style="height:190px"><canvas id="'+prefix+s.suf+'"></canvas></div></div>';
   }).join('');
 }
-function buildCharts(prefix,meds){
+function buildCharts(prefix,meds,objetivo){
   const labels=meds.map(m=>'N'+m.n_medicion);
   CHART_SPECS.forEach(function(s){
     const ctx=$(prefix+s.suf);
     if(!ctx)return;
+    const datasets=[{label:s.label,data:meds.map(function(m){return m[s.key];}),borderColor:s.color,backgroundColor:s.color,tension:.3,pointRadius:4,fill:false}];
+    var objVal=objetivo&&objetivo[s.objKey];
+    if(objVal){
+      datasets.push({label:'Objetivo',data:labels.map(function(){return objVal;}),borderColor:'#999',borderDash:[6,4],pointRadius:0,fill:false});
+    }
     const ch=new Chart(ctx,{
       type:'line',
-      data:{labels:labels,datasets:[{label:s.label,data:meds.map(function(m){return m[s.key];}),borderColor:s.color,backgroundColor:s.color,tension:.3,pointRadius:4,fill:false}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:s.label,font:{size:10}}}}}
+      data:{labels:labels,datasets:datasets},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:!!objVal,position:'bottom',labels:{boxWidth:10,font:{size:10}}}},scales:{y:{title:{display:true,text:s.label,font:{size:10}}}}}
     });
     APP.charts.push(ch);
   });
@@ -275,12 +315,15 @@ function renderLogin(mode,err){
   if(lp)lp.onkeydown=function(e){if(e.key==='Enter')doLogin(mode);};
 }
 
+function saveSession(){try{localStorage.setItem('polital_session',JSON.stringify(APP.session));}catch(e){}}
+function logout(){try{localStorage.removeItem('polital_session');}catch(e){}APP.session=null;renderLogin();}
+
 async function doLogin(mode){
   var u=$('lu')?$('lu').value.trim().toLowerCase():'';
   var p=$('lp')?$('lp').value:'';
   if(!u||!p){renderLogin(mode,'Completá usuario y contraseña');return;}
   if(mode==='admin'){
-    if(u==='agus'&&p==='polital2024'){APP.session={role:'admin'};await loadAdmin();renderAdmin();}
+    if(u==='agus'&&p==='polital2024'){APP.session={role:'admin'};saveSession();await loadAdmin();renderAdmin();}
     else renderLogin(mode,'Usuario o contraseña incorrectos');
     return;
   }
@@ -288,22 +331,51 @@ async function doLogin(mode){
   if(r.error||!r.data){renderLogin(mode,'Usuario no encontrado');return;}
   if(r.data.password_hash!==p){renderLogin(mode,'Contraseña incorrecta');return;}
   APP.session={role:'jugadora',id:r.data.id,nombre:r.data.nombre,plantel:r.data.planteles?r.data.planteles.nombre:''};
-  var m=await sb.from('mediciones').select('*').eq('jugadora_id',r.data.id).order('n_medicion');
-  var o=await sb.from('objetivos').select('*').eq('jugadora_id',r.data.id).single();
-  APP.jugMeds=m.data||[];APP.jugObj=o.data;
+  saveSession();
+  await cargarJugadoraSesion(r.data.id,r.data);
   renderJugadora();
+}
+async function cargarJugadoraSesion(jid,jugData){
+  await loadBaremos();
+  var m=await sb.from('mediciones').select('*').eq('jugadora_id',jid).order('n_medicion');
+  var o=await sb.from('objetivos').select('*').eq('jugadora_id',jid).single();
+  APP.jugMeds=m.data||[];APP.jugObj=o.data;
+  if(jugData)APP.session.jugadora=jugData;
+}
+async function bootstrap(){
+  var raw=null;
+  try{raw=localStorage.getItem('polital_session');}catch(e){}
+  if(!raw){renderLogin();return;}
+  var s=null;
+  try{s=JSON.parse(raw);}catch(e){}
+  if(!s||!s.role){renderLogin();return;}
+  APP.session=s;
+  if(s.role==='admin'){await loadAdmin();renderAdmin();}
+  else if(s.role==='jugadora'){
+    var r=await sb.from('jugadoras').select('*,planteles(nombre)').eq('id',s.id).single();
+    if(r.error||!r.data){logout();return;}
+    APP.session.nombre=r.data.nombre;APP.session.plantel=r.data.planteles?r.data.planteles.nombre:'';
+    await cargarJugadoraSesion(s.id,r.data);
+    renderJugadora();
+  } else renderLogin();
 }
 
 // ── JUGADORA ──────────────────────────────────────────────
 function renderJugadora(tab){
   tab=tab||'estado';
   var meds=APP.jugMeds;
+  var deportJug=(APP.session.jugadora&&APP.session.jugadora.deporte)||'Rugby';
   var ult=meds.length?meds[meds.length-1]:null;
   var pen=meds.length>1?meds[meds.length-2]:null;
   var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div><div class="nav-title">Polital</div><div class="nav-sub">'+(APP.session.plantel||'')+'</div></div></div>'+
-    '<div style="display:flex;gap:6px"><button class="logout-btn" onclick="modalCambiarPass()">🔑 Clave</button><button class="logout-btn" onclick="renderLogin()">Salir</button></div></nav>';
+    '<div style="display:flex;gap:6px"><button class="logout-btn" onclick="modalCambiarPass()">🔑 Clave</button><button class="logout-btn" onclick="logout()">Salir</button></div></nav>';
+  var edadJug=calcEdad(APP.session.jugadora&&APP.session.jugadora.fecha_nacimiento);
+  var subJug=[];
+  if(edadJug!=null)subJug.push(edadJug+' años');
+  if(APP.session.jugadora&&APP.session.jugadora.posicion)subJug.push(APP.session.jugadora.posicion);
+  subJug.push(ult?'Última medición: '+(ult.fecha||'—')+' · N° '+ult.n_medicion:'Sin mediciones');
   var header='<div style="display:flex;align-items:center;gap:14px;margin-bottom:1.25rem"><div class="player-avatar" style="width:48px;height:48px;font-size:18px">'+ini(APP.session.nombre)+'</div>'+
-    '<div><div style="font-size:20px;font-weight:600">'+APP.session.nombre+'</div><div style="font-size:13px;color:#888">'+(ult?'Última medición: '+(ult.fecha||'—')+' · N° '+ult.n_medicion:'Sin mediciones')+'</div></div></div>';
+    '<div><div style="font-size:20px;font-weight:600">'+APP.session.nombre+'</div><div style="font-size:13px;color:#888">'+subJug.join(' · ')+'</div></div></div>';
   var tabs='<div class="tabs">'+
     '<button class="tab '+(tab==='estado'?'active':'')+'" onclick="renderJugadora(&quot;estado&quot;)">Mi estado</button>'+
     '<button class="tab '+(tab==='evolucion'?'active':'')+'" onclick="renderJugadora(&quot;evolucion&quot;)">Evolución</button>'+
@@ -311,11 +383,13 @@ function renderJugadora(tab){
 
   var content='';
   if(tab==='estado'){
-    if(!ult){content='<div class="card" style="text-align:center;color:#888;padding:2rem">Sin mediciones cargadas</div>';}
+    var jSess=APP.session.jugadora;
+    if(jSess&&jSess.plan_pdf_url)content+='<div class="card"><div class="card-title">📎 Mi plan nutricional</div><a href="'+jSess.plan_pdf_url+'" target="_blank" class="btn btn-primary btn-sm">Ver plan (PDF)</a></div>';
+    if(!ult){content+='<div class="card" style="text-align:center;color:#888;padding:2rem">Sin mediciones cargadas</div>';}
     else{
       var motiv=mensajeMotivacional(meds);
       if(motiv)content+='<div class="motiv-card"><div class="motiv-title">'+motiv.t+'</div><div class="motiv-text">'+motiv.s+'</div></div>';
-      var ma=eMA(ult.masa_adiposa),imo=eIMO(ult.imo),s6p=eS6P(ult.s6p);
+      var ma=eMA(ult.masa_adiposa,deportJug),imo=eIMO(ult.imo,deportJug),s6p=eS6P(ult.s6p,deportJug);
       content+='<div class="metric-grid">'+
         '<div class="metric-card" style="border-top:3px solid '+ma.h+'"><div class="metric-label">Masa Adiposa</div><div class="metric-value">'+f2(ult.masa_adiposa)+'</div><div class="metric-label">kg</div><span class="metric-badge '+ma.c+'">'+ma.l+'</span></div>'+
         '<div class="metric-card" style="border-top:3px solid '+imo.h+'"><div class="metric-label">IMO</div><div class="metric-value">'+f2(ult.imo)+'</div><div class="metric-label">MM/MO</div><span class="metric-badge '+imo.c+'">'+imo.l+'</span></div>'+
@@ -351,31 +425,38 @@ function renderJugadora(tab){
     else{
       content=chartBoxesHtml('jug','📈 Tu evolución');
       var rows='';
-      meds.forEach(function(m,i){var prev=i>0?meds[i-1]:null;var ma=eMA(m.masa_adiposa),imo=eIMO(m.imo),s6p=eS6P(m.s6p);
+      meds.forEach(function(m,i){var prev=i>0?meds[i-1]:null;var ma=eMA(m.masa_adiposa,deportJug),imo=eIMO(m.imo,deportJug),s6p=eS6P(m.s6p,deportJug);
         rows+='<tr><td>N'+m.n_medicion+'</td><td>'+(m.fecha||'—')+'</td><td style="color:'+ma.h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td>'+(prev?diffArrow(m.masa_adiposa,prev.masa_adiposa,false):'')+'</td><td style="color:'+imo.h+';font-weight:600">'+f2(m.imo)+'</td><td>'+(prev?diffArrow(m.imo,prev.imo,true):'')+'</td><td style="color:'+s6p.h+';font-weight:600">'+f0(m.s6p)+'</td><td>'+(prev?diffArrow(m.s6p,prev.s6p,false):'')+'</td></tr>';
       });
       content+='<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden;overflow-x:auto"><table class="data-table"><thead><tr><th>N°</th><th>Fecha</th><th>MA</th><th>Δ</th><th>IMO</th><th>Δ</th><th>S6P</th><th>Δ</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
     }
   } else {
-    var rows2=meds.slice().reverse().map(function(m){return '<tr><td>'+(m.fecha||'—')+'</td><td style="font-weight:600">N'+m.n_medicion+'</td><td style="color:'+eMA(m.masa_adiposa).h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td style="color:'+eIMO(m.imo).h+';font-weight:600">'+f2(m.imo)+'</td><td style="color:'+eS6P(m.s6p).h+';font-weight:600">'+f0(m.s6p)+'</td></tr>';}).join('');
+    var rows2=meds.slice().reverse().map(function(m){return '<tr><td>'+(m.fecha||'—')+'</td><td style="font-weight:600">N'+m.n_medicion+'</td><td style="color:'+eMA(m.masa_adiposa,deportJug).h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td style="color:'+eIMO(m.imo,deportJug).h+';font-weight:600">'+f2(m.imo)+'</td><td style="color:'+eS6P(m.s6p,deportJug).h+';font-weight:600">'+f0(m.s6p)+'</td></tr>';}).join('');
     content='<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden"><table class="data-table"><thead><tr><th>Fecha</th><th>N°</th><th>MA (kg)</th><th>IMO</th><th>S6P (mm)</th></tr></thead><tbody>'+(rows2||'<tr><td colspan=5 style="text-align:center;color:#aaa;padding:2rem">Sin mediciones</td></tr>')+'</tbody></table></div>';
   }
   render(nav+'<div class="page">'+header+tabs+content+'</div>');
-  if(tab==='evolucion'&&meds.length>=2)setTimeout(function(){buildCharts('jug',meds);},50);
+  if(tab==='evolucion'&&meds.length>=2)setTimeout(function(){buildCharts('jug',meds,APP.jugObj);},50);
 }
 
 // ── ADMIN ─────────────────────────────────────────────────
+async function loadBaremos(){
+  var b=await sb.from('baremos').select('*');
+  var map={};
+  (b.data||[]).forEach(function(row){map[row.deporte]=row;});
+  APP.baremos=map;
+}
 async function loadAdmin(){
   var pl=await sb.from('planteles').select('*').order('id');
   var ju=await sb.from('jugadoras').select('*,planteles(nombre)').eq('activa',true).order('nombre');
   var me=await sb.from('mediciones').select('*').order('n_medicion');
+  await loadBaremos();
   APP.planteles=pl.data||[];APP.jugs=ju.data||[];APP.meds=me.data||[];
   if(APP.planteles.length&&!APP.selPlantel)APP.selPlantel=APP.planteles[0];
 }
 
 function renderAdmin(tab){
   tab=tab||'plantel';
-  var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div><div class="nav-title">Polital Admin</div><div class="nav-sub">Hola, Agus</div></div></div><button class="logout-btn" onclick="renderLogin()">Salir</button></nav>';
+  var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div><div class="nav-title">Polital Admin</div><div class="nav-sub">Hola, Agus</div></div></div><button class="logout-btn" onclick="logout()">Salir</button></nav>';
   var plantelBtns=APP.planteles.map(function(p){return '<button class="btn btn-sm '+(p.id===APP.selPlantel.id?'btn-primary':'btn-secondary')+'" onclick="selPlantel('+p.id+')">'+p.nombre+'</button>';}).join('');
   var tabs='<div class="tabs">'+
     '<button class="tab '+(tab==='plantel'?'active':'')+'" onclick="renderAdmin(&quot;plantel&quot;)">Plantel</button>'+
@@ -390,24 +471,32 @@ function renderAdmin(tab){
   if(tab==='plantel'){
     var filtered=jugs.slice();
     if(APP.search)filtered=filtered.filter(function(j){return j.nombre.toLowerCase().indexOf(APP.search.toLowerCase())>=0;});
-    if(APP.filter==='alertas')filtered=filtered.filter(function(j){return pts(ultima(j.id))>=2;});
+    if(APP.filter==='alertas')filtered=filtered.filter(function(j){return pts(ultima(j.id),j.deporte)>=2;});
     else if(APP.filter==='sinmed')filtered=filtered.filter(function(j){return !ultima(j.id);});
-    content='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;color:#888">'+jugs.length+' jugadoras</div>'+
-      '<div style="display:flex;gap:8px"><button class="btn btn-secondary btn-sm" onclick="exportarPlantel()">📄 Exportar</button><button class="btn btn-primary btn-sm" onclick="modalAddJug()">+ Jugadora</button></div></div>';
+    if(APP.orderAntig){
+      filtered=filtered.slice().sort(function(a,b){
+        var da=diasDesde(ultima(a.id)?ultima(a.id).fecha:null),db=diasDesde(ultima(b.id)?ultima(b.id).fecha:null);
+        if(da==null&&db==null)return 0; if(da==null)return -1; if(db==null)return 1;
+        return db-da;
+      });
+    }
+    content='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px"><div style="font-size:14px;color:#888">'+jugs.length+' jugadoras</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" onclick="modalCargarZip()">📦 Cargar ZIP</button><button class="btn btn-secondary btn-sm" onclick="modalBaremos()">⚙️ Baremos</button><button class="btn btn-secondary btn-sm" onclick="exportarExcelPlantel()">📊 Excel</button><button class="btn btn-secondary btn-sm" onclick="exportarPlantel()">🖨️ Imprimir</button><button class="btn btn-primary btn-sm" onclick="modalAddJug()">+ Jugadora</button></div></div>';
     content+='<input class="search-box" placeholder="🔍 Buscar jugadora..." value="'+APP.search+'" oninput="APP.search=this.value;renderAdminPlantelList()" id="searchBox"/>';
     content+='<div class="filter-btns">'+
       '<button class="filter-btn '+(APP.filter==='todos'?'active':'')+'" onclick="APP.filter=&quot;todos&quot;;renderAdmin(&quot;plantel&quot;)">Todas</button>'+
       '<button class="filter-btn '+(APP.filter==='alertas'?'active':'')+'" onclick="APP.filter=&quot;alertas&quot;;renderAdmin(&quot;plantel&quot;)">Con alertas</button>'+
-      '<button class="filter-btn '+(APP.filter==='sinmed'?'active':'')+'" onclick="APP.filter=&quot;sinmed&quot;;renderAdmin(&quot;plantel&quot;)">Sin medición</button></div>';
+      '<button class="filter-btn '+(APP.filter==='sinmed'?'active':'')+'" onclick="APP.filter=&quot;sinmed&quot;;renderAdmin(&quot;plantel&quot;)">Sin medición</button>'+
+      '<button class="filter-btn '+(APP.orderAntig?'active':'')+'" onclick="APP.orderAntig=!APP.orderAntig;renderAdmin(&quot;plantel&quot;)">⏱️ Hace más que no se mide</button></div>';
     content+='<div id="plantelList">'+renderPlantelListHtml(filtered)+'</div>';
   } else if(tab==='alertas'){
-    var con=ultimas.filter(function(m){return pts(m)>=2;}).length;
+    var con=jugs.filter(function(j){return pts(ultima(j.id),j.deporte)>=2;}).length;
     content='<div style="font-size:13px;color:#888;margin-bottom:12px">'+con+' jugadoras requieren atención</div>';
-    var arr=jugs.map(function(j){return {j:j,u:ultima(j.id),p:pts(ultima(j.id))};}).filter(function(x){return x.u;}).sort(function(a,b){return b.p-a.p;});
-    arr.forEach(function(o){var j=o.j,u=o.u;var pr=prio(o.p);var dets=[];
-      if(u.masa_adiposa>22)dets.push('MA alta ('+f2(u.masa_adiposa)+' kg)');else if(u.masa_adiposa>18)dets.push('MA revisar ('+f2(u.masa_adiposa)+' kg)');
-      if(u.s6p>100)dets.push('S6P alta ('+f0(u.s6p)+' mm)');else if(u.s6p>80)dets.push('S6P revisar ('+f0(u.s6p)+' mm)');
-      if(u.imo<3.5)dets.push('IMO bajo ('+f2(u.imo)+')');else if(u.imo<3.8)dets.push('IMO revisar ('+f2(u.imo)+')');
+    var arr=jugs.map(function(j){return {j:j,u:ultima(j.id),p:pts(ultima(j.id),j.deporte)};}).filter(function(x){return x.u;}).sort(function(a,b){return b.p-a.p;});
+    arr.forEach(function(o){var j=o.j,u=o.u;var pr=prio(o.p);var b=baremoDe(j.deporte);var dets=[];
+      if(u.masa_adiposa>b.ma_revisar)dets.push('MA alta ('+f2(u.masa_adiposa)+' kg)');else if(u.masa_adiposa>b.ma_optimo)dets.push('MA revisar ('+f2(u.masa_adiposa)+' kg)');
+      if(u.s6p>b.s6p_revisar)dets.push('S6P alta ('+f0(u.s6p)+' mm)');else if(u.s6p>b.s6p_optimo)dets.push('S6P revisar ('+f0(u.s6p)+' mm)');
+      if(u.imo<b.imo_revisar)dets.push('IMO bajo ('+f2(u.imo)+')');else if(u.imo<b.imo_optimo)dets.push('IMO revisar ('+f2(u.imo)+')');
       content+='<div class="alert-item" onclick="renderDetalle('+j.id+')"><div><div style="font-size:14px;font-weight:500">'+j.nombre+'</div><div style="font-size:12px;color:#888;margin-top:3px">'+(dets.length?dets.join(' · '):'Sin alertas')+'</div></div><span class="priority-badge '+pr.c+'">'+pr.l+'</span></div>';
     });
   } else if(tab==='resumen'){
@@ -415,33 +504,44 @@ function renderAdmin(tab){
     var avgMA=n?avg(ultimas.map(function(m){return m.masa_adiposa;})).toFixed(1):'—';
     var avgIMO=n?avg(ultimas.map(function(m){return m.imo;})).toFixed(2):'—';
     var avgS6P=n?avg(ultimas.map(function(m){return m.s6p;})).toFixed(0):'—';
-    var con2=ultimas.filter(function(m){return pts(m)>=2;}).length;
-    content='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-secondary btn-sm" onclick="exportarPlantel()">📄 Exportar informe</button></div>';
+    var con2=jugs.filter(function(j){return pts(ultima(j.id),j.deporte)>=2;}).length;
+    content='<div style="display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px"><button class="btn btn-secondary btn-sm" onclick="exportarExcelPlantel()">📊 Excel</button><button class="btn btn-secondary btn-sm" onclick="exportarPlantel()">🖨️ Imprimir</button></div>';
     content+='<div class="stats-grid">'+
       '<div class="stat-card"><div class="stat-label">Jugadoras</div><div class="stat-value">'+jugs.length+'</div><div class="stat-sub">'+APP.selPlantel.nombre+'</div></div>'+
       '<div class="stat-card"><div class="stat-label">Con alertas</div><div class="stat-value" style="color:'+(con2>0?'#9C0006':'#1F7A4A')+'">'+con2+'</div><div class="stat-sub">requieren atención</div></div>'+
-      '<div class="stat-card"><div class="stat-label">MA promedio</div><div class="stat-value">'+avgMA+'</div><div class="stat-sub">kg · obj ≤ 22</div></div>'+
-      '<div class="stat-card"><div class="stat-label">IMO promedio</div><div class="stat-value">'+avgIMO+'</div><div class="stat-sub">obj ≥ 3.8</div></div></div>'+
+      '<div class="stat-card"><div class="stat-label">MA promedio</div><div class="stat-value">'+avgMA+'</div><div class="stat-sub">kg</div></div>'+
+      '<div class="stat-card"><div class="stat-label">IMO promedio</div><div class="stat-value">'+avgIMO+'</div><div class="stat-sub">MM/MO</div></div></div>'+
       '<div class="stat-card" style="margin-bottom:1rem"><div class="stat-label">S6P promedio</div><div class="stat-value">'+avgS6P+' mm</div></div>'+
       '<div class="section-title">Estado del plantel</div>';
-    var estados=[['MA en rango (≤22 kg)',ultimas.filter(function(m){return m.masa_adiposa<=22;}).length,'#1F7A4A'],['IMO óptimo (≥3.8)',ultimas.filter(function(m){return m.imo>=3.8;}).length,'#2E75B6'],['S6P óptimo (≤80 mm)',ultimas.filter(function(m){return m.s6p<=80;}).length,'#70AD47']];
+    var estados=[['MA en rango',ultimas.filter(function(m){return m.masa_adiposa<=22;}).length,'#1F7A4A'],['IMO óptimo',ultimas.filter(function(m){return m.imo>=3.8;}).length,'#2E75B6'],['S6P óptimo',ultimas.filter(function(m){return m.s6p<=80;}).length,'#70AD47']];
     estados.forEach(function(e){content+='<div class="progress-item"><div class="progress-label">'+e[0]+'</div><div class="progress-track"><div class="progress-fill" style="width:'+(n?(e[1]/n*100).toFixed(0):0)+'%;background:'+e[2]+'"></div></div><div class="progress-val" style="color:'+e[2]+'">'+e[1]+'/'+n+'</div></div>';});
+    if(jugs.some(function(j){return medsJ(j.id).length>=2;})){
+      content+='<div class="section-title">Evolución promedio del plantel</div>';
+      content+=chartBoxesHtml('team','📈 Promedio plantel');
+    }
   } else if(tab==='comparar'){
     content='<div class="card"><div class="card-title">Comparar jugadoras del plantel</div><div class="chart-box"><canvas id="cmpChart"></canvas></div></div>';
     content+='<div style="font-size:12px;color:#888;margin-bottom:8px">Ordenadas por S6P (de mayor a menor)</div>';
     var arr2=jugs.map(function(j){return {j:j,u:ultima(j.id)};}).filter(function(x){return x.u;}).sort(function(a,b){return b.u.s6p-a.u.s6p;});
     arr2.forEach(function(o){var mx=Math.max.apply(null,arr2.map(function(x){return x.u.s6p;}));
-      content+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="width:130px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+o.j.nombre+'</div><div style="flex:1;height:20px;background:#f0f0f0;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+(o.u.s6p/mx*100)+'%;background:'+eS6P(o.u.s6p).h+';border-radius:4px"></div></div><div style="width:50px;text-align:right;font-size:12px;font-weight:600;color:'+eS6P(o.u.s6p).h+'">'+f0(o.u.s6p)+'</div></div>';
+      content+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="width:130px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+o.j.nombre+'</div><div style="flex:1;height:20px;background:#f0f0f0;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+(o.u.s6p/mx*100)+'%;background:'+eS6P(o.u.s6p,o.j.deporte).h+';border-radius:4px"></div></div><div style="width:50px;text-align:right;font-size:12px;font-weight:600;color:'+eS6P(o.u.s6p,o.j.deporte).h+'">'+f0(o.u.s6p)+'</div></div>';
     });
   }
   render(nav+'<div class="page"><div class="plantel-btns">'+plantelBtns+'</div>'+tabs+content+'</div>');
   if(tab==='comparar')setTimeout(function(){buildCompareChart(jugs);},50);
+  if(tab==='resumen')setTimeout(function(){buildTeamCharts(jugs);},50);
 }
 
-function miniResumen(u){
-  if(!u)return '<div style="font-size:12px;color:#aaa">Sin mediciones</div>';
-  var ma=eMA(u.masa_adiposa),imo=eIMO(u.imo),s6p=eS6P(u.s6p);
-  return '<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">'+
+function miniResumen(u,deporte,j){
+  var extra=[];
+  if(j&&j.edad_txt)extra.push(j.edad_txt);
+  if(j&&j.posicion)extra.push(j.posicion);
+  var extraHtml=extra.length?'<div style="font-size:11px;color:#aaa;margin-top:2px">'+extra.join(' · ')+'</div>':'';
+  if(!u)return extraHtml+'<div style="font-size:12px;color:#aaa">Sin mediciones</div>';
+  var ma=eMA(u.masa_adiposa,deporte),imo=eIMO(u.imo,deporte),s6p=eS6P(u.s6p,deporte);
+  var d=diasDesde(u.fecha);
+  var antigHtml=(APP.orderAntig&&d!=null)?'<div style="font-size:11px;color:'+(d>150?'#9C0006':'#aaa')+';margin-top:2px">Hace '+d+' días</div>':'';
+  return extraHtml+antigHtml+'<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">'+
     '<span class="metric-badge '+ma.c+'" style="font-size:10px;padding:2px 7px">MA '+f2(u.masa_adiposa)+'</span>'+
     '<span class="metric-badge '+imo.c+'" style="font-size:10px;padding:2px 7px">IMO '+f2(u.imo)+'</span>'+
     '<span class="metric-badge '+s6p.c+'" style="font-size:10px;padding:2px 7px">S6P '+f0(u.s6p)+'</span>'+
@@ -449,14 +549,15 @@ function miniResumen(u){
 }
 function renderPlantelListHtml(jugs){
   if(!jugs.length)return '<div style="text-align:center;color:#aaa;padding:2rem">No hay jugadoras que coincidan</div>';
-  return jugs.map(function(j){var u=ultima(j.id);var pr=prio(pts(u));
-    return '<div class="player-item" onclick="renderDetalle('+j.id+')"><div style="display:flex;align-items:center;gap:12px"><div class="player-avatar">'+ini(j.nombre)+'</div><div><div style="font-size:14px;font-weight:500">'+j.nombre+'</div>'+miniResumen(u)+'</div></div>'+(u?'<span class="metric-badge '+pr.c+'" style="font-size:11px">'+pr.l+'</span>':'')+'</div>';
+  return jugs.map(function(j){var u=ultima(j.id);var pr=prio(pts(u,j.deporte));
+    var edad=calcEdad(j.fecha_nacimiento);j.edad_txt=edad!=null?edad+' años':null;
+    return '<div class="player-item" onclick="renderDetalle('+j.id+')"><div style="display:flex;align-items:center;gap:12px"><div class="player-avatar">'+ini(j.nombre)+'</div><div><div style="font-size:14px;font-weight:500">'+j.nombre+'</div>'+miniResumen(u,j.deporte,j)+'</div></div>'+(u?'<span class="metric-badge '+pr.c+'" style="font-size:11px">'+pr.l+'</span>':'')+'</div>';
   }).join('');
 }
 function renderAdminPlantelList(){
   var jugs=APP.jugs.filter(function(j){return j.plantel_id===APP.selPlantel.id;});
   if(APP.search)jugs=jugs.filter(function(j){return j.nombre.toLowerCase().indexOf(APP.search.toLowerCase())>=0;});
-  if(APP.filter==='alertas')jugs=jugs.filter(function(j){return pts(ultima(j.id))>=2;});
+  if(APP.filter==='alertas')jugs=jugs.filter(function(j){return pts(ultima(j.id),j.deporte)>=2;});
   else if(APP.filter==='sinmed')jugs=jugs.filter(function(j){return !ultima(j.id);});
   var el=$('plantelList');if(el)el.innerHTML=renderPlantelListHtml(jugs);
 }
@@ -471,35 +572,64 @@ function buildCompareChart(jugs){
   APP.charts.push(ch);
 }
 
+function buildTeamCharts(jugs){
+  var porJug=jugs.map(function(j){return medsJ(j.id);}).filter(function(m){return m.length;});
+  if(!porJug.length)return;
+  var maxN=Math.max.apply(null,porJug.map(function(m){return m[m.length-1].n_medicion;}));
+  var labels=[],avgs={masa_adiposa:[],imo:[],s6p:[]};
+  for(var n=1;n<=maxN;n++){
+    labels.push('N'+n);
+    ['masa_adiposa','imo','s6p'].forEach(function(key){
+      var vals=[];
+      porJug.forEach(function(m){var row=m.find(function(x){return x.n_medicion===n;});if(row&&row[key]!=null)vals.push(row[key]);});
+      avgs[key].push(vals.length?avg(vals):null);
+    });
+  }
+  CHART_SPECS.forEach(function(s){
+    var ctx=$('team'+s.suf);if(!ctx)return;
+    var ch=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'Promedio '+s.label,data:avgs[s.key],borderColor:s.color,backgroundColor:s.color,tension:.3,pointRadius:4,spanGaps:true}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:s.label,font:{size:10}}}}}});
+    APP.charts.push(ch);
+  });
+}
+
 function selPlantel(id){APP.selPlantel=APP.planteles.find(function(p){return p.id===id;});APP.search='';APP.filter='todos';renderAdmin();}
 
 // ── DETALLE JUGADORA (admin) ──────────────────────────────
-function renderDetalle(jid){
+async function renderDetalle(jid){
   APP.selJug=APP.jugs.find(function(j){return j.id===jid;});
   var j=APP.selJug;var meds=medsJ(jid);var ult=meds.length?meds[meds.length-1]:null;
-  var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div class="nav-title" style="color:#fff">Admin</div></div><button class="logout-btn" onclick="renderLogin()">Salir</button></nav>';
+  var o=await sb.from('objetivos').select('*').eq('jugadora_id',jid).single();
+  APP.selJugObj=o.data;
+  var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div class="nav-title" style="color:#fff">Admin</div></div><button class="logout-btn" onclick="logout()">Salir</button></nav>';
+  var edad=calcEdad(j.fecha_nacimiento);
+  var subInfo=[j.planteles?j.planteles.nombre:'','@'+j.usuario,j.deporte||'Rugby'];
+  if(edad!=null)subInfo.push(edad+' años');
+  if(j.posicion)subInfo.push(j.posicion);
   var content='<button class="back-btn" onclick="renderAdmin()">← Volver al plantel</button>'+
     '<div style="display:flex;align-items:center;gap:14px;margin-bottom:1rem"><div class="player-avatar" style="width:48px;height:48px;font-size:18px">'+ini(j.nombre)+'</div>'+
-    '<div style="flex:1"><div style="font-size:20px;font-weight:600">'+j.nombre+'</div><div style="font-size:13px;color:#888">'+(j.planteles?j.planteles.nombre:'')+' · @'+j.usuario+'</div></div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" onclick="modalAddMed('+j.id+')">+ Medición</button><button class="btn btn-secondary btn-sm" onclick="modalObj('+j.id+')">Objetivos</button><button class="btn btn-secondary btn-sm" onclick="modalNota('+j.id+')">📝 Nota</button><button class="btn btn-secondary btn-sm" onclick="exportarJugadora('+j.id+')">📄 PDF</button></div></div>';
+    '<div style="flex:1"><div style="font-size:20px;font-weight:600">'+j.nombre+'</div><div style="font-size:13px;color:#888">'+subInfo.join(' · ')+'</div></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" onclick="modalAddMed('+j.id+')">+ Medición</button><button class="btn btn-secondary btn-sm" onclick="modalEditJug('+j.id+')">✏️ Editar</button><button class="btn btn-secondary btn-sm" onclick="modalObj('+j.id+')">Objetivos</button><button class="btn btn-secondary btn-sm" onclick="modalPlan('+j.id+')">📎 Plan</button><button class="btn btn-secondary btn-sm" onclick="modalNota('+j.id+')">📝 Nota</button><button class="btn btn-secondary btn-sm" onclick="exportarJugadora('+j.id+')">📄 PDF</button></div></div>';
   if(ult){
-    var ma=eMA(ult.masa_adiposa),imo=eIMO(ult.imo),s6p=eS6P(ult.s6p);
+    var ma=eMA(ult.masa_adiposa,j.deporte),imo=eIMO(ult.imo,j.deporte),s6p=eS6P(ult.s6p,j.deporte);
     content+='<div class="metric-grid">'+
       '<div class="metric-card" style="border-top:3px solid '+ma.h+'"><div class="metric-label">Masa Adiposa</div><div class="metric-value">'+f2(ult.masa_adiposa)+'</div><span class="metric-badge '+ma.c+'">'+ma.l+'</span></div>'+
       '<div class="metric-card" style="border-top:3px solid '+imo.h+'"><div class="metric-label">IMO</div><div class="metric-value">'+f2(ult.imo)+'</div><span class="metric-badge '+imo.c+'">'+imo.l+'</span></div>'+
       '<div class="metric-card" style="border-top:3px solid '+s6p.h+'"><div class="metric-label">S6P</div><div class="metric-value">'+f0(ult.s6p)+'</div><span class="metric-badge '+s6p.c+'">'+s6p.l+'</span></div></div>';
   }
   if(j.notas)content+='<div class="card" style="background:#FFF9E6"><div class="card-title">📝 Nota privada</div><div style="font-size:13px;color:#555">'+j.notas+'</div></div>';
+  if(j.plan_pdf_url)content+='<div class="card"><div class="card-title">📎 Plan nutricional</div><a href="'+j.plan_pdf_url+'" target="_blank" style="font-size:13px;color:#2E75B6;font-weight:600">'+(j.plan_pdf_nombre||'Ver PDF')+'</a>'+(j.plan_pdf_fecha?'<div style="font-size:11px;color:#aaa;margin-top:4px">Subido '+j.plan_pdf_fecha+'</div>':'')+'</div>';
   if(meds.length>=2)content+=chartBoxesHtml('det','📈 Evolución');
   var rows=meds.slice().reverse().map(function(m,i,arr){var prev=arr[i+1];
     return '<tr><td>'+(m.fecha||'—')+'</td><td style="font-weight:600">N'+m.n_medicion+'</td><td>'+(m.peso||'—')+'</td>'+
-      '<td style="color:'+eMA(m.masa_adiposa).h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td>'+(prev?diffArrow(m.masa_adiposa,prev.masa_adiposa,false):'')+'</td>'+
-      '<td style="color:'+eIMO(m.imo).h+';font-weight:600">'+f2(m.imo)+'</td><td>'+(prev?diffArrow(m.imo,prev.imo,true):'')+'</td>'+
-      '<td style="color:'+eS6P(m.s6p).h+';font-weight:600">'+f0(m.s6p)+'</td><td>'+(prev?diffArrow(m.s6p,prev.s6p,false):'')+'</td></tr>';
+      '<td style="color:'+eMA(m.masa_adiposa,j.deporte).h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td>'+(prev?diffArrow(m.masa_adiposa,prev.masa_adiposa,false):'')+'</td>'+
+      '<td style="color:'+eIMO(m.imo,j.deporte).h+';font-weight:600">'+f2(m.imo)+'</td><td>'+(prev?diffArrow(m.imo,prev.imo,true):'')+'</td>'+
+      '<td style="color:'+eS6P(m.s6p,j.deporte).h+';font-weight:600">'+f0(m.s6p)+'</td><td>'+(prev?diffArrow(m.s6p,prev.s6p,false):'')+'</td>'+
+      '<td><button class="btn btn-secondary btn-sm" style="padding:3px 8px;font-size:11px" onclick="modalEditMed('+m.id+','+j.id+')">✏️</button> <button class="btn btn-secondary btn-sm" style="padding:3px 8px;font-size:11px" onclick="deleteMed('+m.id+','+j.id+')">🗑️</button></td></tr>';
   }).join('');
-  content+='<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden;overflow-x:auto;margin-top:1rem"><table class="data-table"><thead><tr><th>Fecha</th><th>N°</th><th>Peso</th><th>MA</th><th>Δ</th><th>IMO</th><th>Δ</th><th>S6P</th><th>Δ</th></tr></thead><tbody>'+(rows||'<tr><td colspan=9 style="text-align:center;color:#aaa;padding:2rem">Sin mediciones</td></tr>')+'</tbody></table></div>';
+  content+='<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden;overflow-x:auto;margin-top:1rem"><table class="data-table"><thead><tr><th>Fecha</th><th>N°</th><th>Peso</th><th>MA</th><th>Δ</th><th>IMO</th><th>Δ</th><th>S6P</th><th>Δ</th><th></th></tr></thead><tbody>'+(rows||'<tr><td colspan=10 style="text-align:center;color:#aaa;padding:2rem">Sin mediciones</td></tr>')+'</tbody></table></div>';
   render(nav+'<div class="page">'+content+'</div>');
-  if(meds.length>=2)setTimeout(function(){buildCharts('det',meds);},50);
+  if(meds.length>=2)setTimeout(function(){buildCharts('det',meds,APP.selJugObj);},50);
 }
 
 // ── MODALES ───────────────────────────────────────────────
@@ -535,21 +665,45 @@ async function savePass(){
   closeModal();alert('¡Contraseña actualizada!');
 }
 
+function deporteOpts(sel){
+  var deportes=Object.keys(APP.baremos&&Object.keys(APP.baremos).length?APP.baremos:{Rugby:1,Hockey:1});
+  return deportes.map(function(d){return '<option value="'+d+'"'+(d===sel?' selected':'')+'>'+d+'</option>';}).join('');
+}
 function modalAddJug(){
   var opts=APP.planteles.map(function(p){return '<option value="'+p.id+'"'+(p.id===APP.selPlantel.id?' selected':'')+'>'+p.nombre+'</option>';}).join('');
   showModal('Nueva jugadora',
     '<div class="form-group"><label>Nombre completo</label><input id="mn" placeholder="Ej: María García"/></div>'+
-    '<div class="form-group"><label>Plantel</label><select id="mp">'+opts+'</select></div>'+
+    '<div class="form-row"><div class="form-group"><label>Plantel</label><select id="mp">'+opts+'</select></div><div class="form-group"><label>Deporte</label><select id="mdep">'+deporteOpts('Rugby')+'</select></div></div>'+
     '<div class="form-row"><div class="form-group"><label>Usuario</label><input id="mu" placeholder="maria.garcia"/></div><div class="form-group"><label>Contraseña</label><input id="mw" placeholder="clave"/></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Fecha de nacimiento</label><input id="mfnac" placeholder="DD/MM/AAAA"/></div><div class="form-group"><label>Posición</label><input id="mpos" placeholder="Ej: Delantera"/></div></div>'+
     '<div id="merr"></div>',
     '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveJug()">Guardar</button>');
 }
 async function saveJug(){
   var n=$('mn')?$('mn').value.trim():'';var p=parseInt($('mp')?$('mp').value:0);var u=$('mu')?$('mu').value.toLowerCase().trim():'';var w=$('mw')?$('mw').value:'';
   if(!n||!p||!u||!w){$('merr').innerHTML='<div class="msg-error">Completá todos los campos</div>';return;}
-  var r=await sb.from('jugadoras').insert({nombre:n,plantel_id:p,usuario:u,password_hash:w,activa:true});
+  var r=await sb.from('jugadoras').insert({nombre:n,plantel_id:p,usuario:u,password_hash:w,activa:true,deporte:$('mdep')?$('mdep').value:'Rugby',fecha_nacimiento:$('mfnac')?$('mfnac').value||null:null,posicion:$('mpos')?$('mpos').value||null:null});
   if(r.error){$('merr').innerHTML='<div class="msg-error">'+r.error.message+'</div>';return;}
   closeModal();await loadAdmin();renderAdmin();
+}
+
+function modalEditJug(jid){
+  var j=APP.jugs.find(function(x){return x.id===jid;});
+  if(!j)return;
+  var opts=APP.planteles.map(function(p){return '<option value="'+p.id+'"'+(p.id===j.plantel_id?' selected':'')+'>'+p.nombre+'</option>';}).join('');
+  showModal('Editar jugadora — '+j.nombre,
+    '<div class="form-group"><label>Nombre completo</label><input id="ejn" value="'+j.nombre+'"/></div>'+
+    '<div class="form-row"><div class="form-group"><label>Plantel</label><select id="ejp">'+opts+'</select></div><div class="form-group"><label>Deporte</label><select id="ejdep">'+deporteOpts(j.deporte||'Rugby')+'</select></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Fecha de nacimiento</label><input id="ejfnac" value="'+(j.fecha_nacimiento||'')+'" placeholder="DD/MM/AAAA"/></div><div class="form-group"><label>Posición</label><input id="ejpos" value="'+(j.posicion||'')+'" placeholder="Ej: Delantera"/></div></div>'+
+    '<div id="ejerr"></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEditJug('+jid+')">Guardar</button>');
+}
+async function saveEditJug(jid){
+  var n=$('ejn')?$('ejn').value.trim():'';
+  if(!n){$('ejerr').innerHTML='<div class="msg-error">El nombre no puede quedar vacío</div>';return;}
+  var r=await sb.from('jugadoras').update({nombre:n,plantel_id:parseInt($('ejp').value),deporte:$('ejdep').value,fecha_nacimiento:$('ejfnac').value||null,posicion:$('ejpos').value||null}).eq('id',jid);
+  if(r.error){$('ejerr').innerHTML='<div class="msg-error">'+r.error.message+'</div>';return;}
+  closeModal();await loadAdmin();renderDetalle(jid);
 }
 
 // ── LECTOR DE EXCEL (Proc datos brutos) ───────────────────
@@ -562,6 +716,32 @@ function parseFechaDeNombre(filename){
   if(mo<1||mo>12||d<1||d>31)return null;
   return String(d).padStart(2,'0')+'/'+String(mo).padStart(2,'0')+'/'+y;
 }
+function excelSerialToDMY(v){
+  if(v==null)return null;
+  if(typeof v==='number'){
+    var d=XLSX.SSF.parse_date_code(v);
+    if(!d)return null;
+    return String(d.d).padStart(2,'0')+'/'+String(d.m).padStart(2,'0')+'/'+d.y;
+  }
+  return String(v);
+}
+function leerExcelMedicion(wb){
+  var sheetName=wb.SheetNames.find(function(n){return n.trim()==='Proc datos brutos';});
+  if(!sheetName)return {error:'No encontré la hoja "Proc datos brutos" en ese archivo.'};
+  var ws=wb.Sheets[sheetName];
+  var cell=function(ref){var c=ws[ref];return c?c.v:null;};
+  var peso=cell('B6'),talla=cell('B7'),ma=cell('I50'),mm=cell('I51'),mo=cell('I53'),s6p=cell('B50');
+  if(ma==null||mm==null||mo==null||s6p==null)return {error:'El archivo no tiene todos los valores esperados (MA/MM/MO/S6P).'};
+  var fechaNacimiento=excelSerialToDMY(cell('E3'));
+  var fechaHoja=excelSerialToDMY(cell('B3'));
+  var deporte=cell('C1');
+  var posicion=null;
+  if(wb.SheetNames.indexOf('ANAMNESIS')>=0){
+    try{posicion=wb.Sheets['ANAMNESIS']['C3']?wb.Sheets['ANAMNESIS']['C3'].v:null;}catch(e){}
+  }
+  return {peso:peso,talla:talla,ma:ma,mm:mm,mo:mo,s6p:s6p,fechaNacimiento:fechaNacimiento,fechaHoja:fechaHoja,deporte:deporte,posicion:posicion};
+}
+var APP_EXTRA={};
 function handleExcelFile(file){
   var elErr=$('mxerr'),elOk=$('mxok');
   if(elErr)elErr.innerHTML='';
@@ -570,20 +750,17 @@ function handleExcelFile(file){
   reader.onload=function(e){
     try{
       var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-      var sheetName=wb.SheetNames.find(function(n){return n.trim()==='Proc datos brutos';});
-      if(!sheetName){if(elErr)elErr.innerHTML='<div class="msg-error">No encontré la hoja "Proc datos brutos" en ese archivo.</div>';return;}
-      var ws=wb.Sheets[sheetName];
-      var cell=function(ref){var c=ws[ref];return c?c.v:null;};
-      var peso=cell('B6'),talla=cell('B7'),ma=cell('I50'),mm=cell('I51'),mo=cell('I53'),s6p=cell('B50');
-      if(ma==null||mm==null||mo==null||s6p==null){if(elErr)elErr.innerHTML='<div class="msg-error">El archivo no tiene todos los valores esperados (MA/MM/MO/S6P). Revisalo a mano.</div>';return;}
-      if($('mpe'))$('mpe').value=peso!=null?peso:'';
-      if($('mta'))$('mta').value=talla!=null?talla:'';
-      if($('mma'))$('mma').value=typeof ma==='number'?ma.toFixed(3):ma;
-      if($('mmm'))$('mmm').value=typeof mm==='number'?mm.toFixed(3):mm;
-      if($('mmo'))$('mmo').value=typeof mo==='number'?mo.toFixed(3):mo;
-      if($('ms6'))$('ms6').value=typeof s6p==='number'?s6p.toFixed(1):s6p;
+      var d=leerExcelMedicion(wb);
+      if(d.error){if(elErr)elErr.innerHTML='<div class="msg-error">'+d.error+' Revisalo a mano.</div>';return;}
+      if($('mpe'))$('mpe').value=d.peso!=null?d.peso:'';
+      if($('mta'))$('mta').value=d.talla!=null?d.talla:'';
+      if($('mma'))$('mma').value=typeof d.ma==='number'?d.ma.toFixed(3):d.ma;
+      if($('mmm'))$('mmm').value=typeof d.mm==='number'?d.mm.toFixed(3):d.mm;
+      if($('mmo'))$('mmo').value=typeof d.mo==='number'?d.mo.toFixed(3):d.mo;
+      if($('ms6'))$('ms6').value=typeof d.s6p==='number'?d.s6p.toFixed(1):d.s6p;
       var fechaNombre=parseFechaDeNombre(file.name);
       if(fechaNombre&&$('mf')&&!$('mf').value)$('mf').value=fechaNombre;
+      APP_EXTRA={fecha_nacimiento:d.fechaNacimiento,posicion:d.posicion,deporte:d.deporte};
       if(elOk)elOk.innerHTML='<div class="msg-success">✅ Datos leídos de "'+file.name+'". Revisá los valores y la fecha antes de guardar.</div>';
     }catch(err){
       if(elErr)elErr.innerHTML='<div class="msg-error">No pude leer ese archivo (¿es un .xlsm/.xlsx válido?): '+err.message+'</div>';
@@ -600,6 +777,7 @@ function dzDrop(e){
 }
 
 function modalAddMed(jid){
+  APP_EXTRA={};
   var nextN=medsJ(jid).length+1;
   showModal('Nueva medición — '+APP.selJug.nombre,
     '<div id="dropzone" class="dropzone" ondragover="dzOver(event)" ondragleave="dzLeave(event)" ondrop="dzDrop(event)" onclick="document.getElementById(&quot;mfile&quot;).click()">'+
@@ -621,7 +799,42 @@ async function saveMed(jid){
   var imo=mo>0?Math.round(mm/mo*100)/100:0;
   var r=await sb.from('mediciones').insert({jugadora_id:jid,fecha:$('mf').value||'—',n_medicion:parseInt($('mn2').value),peso:parseFloat($('mpe').value)||null,talla:parseFloat($('mta').value)||null,masa_adiposa:ma,masa_muscular:mm,masa_osea:mo,s6p:s6p,imo:imo});
   if(r.error){$('merr').innerHTML='<div class="msg-error">'+r.error.message+'</div>';return;}
+  // Si el Excel traia fecha de nacimiento/posicion/deporte y la jugadora no los tenia cargados, los completa solo
+  var jActual=APP.jugs.find(function(x){return x.id===jid;});
+  if(jActual&&APP_EXTRA&&(APP_EXTRA.fecha_nacimiento||APP_EXTRA.posicion||APP_EXTRA.deporte)){
+    var patch={};
+    if(APP_EXTRA.fecha_nacimiento&&!jActual.fecha_nacimiento)patch.fecha_nacimiento=APP_EXTRA.fecha_nacimiento;
+    if(APP_EXTRA.posicion&&!jActual.posicion)patch.posicion=APP_EXTRA.posicion;
+    if(APP_EXTRA.deporte&&!jActual.deporte)patch.deporte=APP_EXTRA.deporte;
+    if(Object.keys(patch).length)await sb.from('jugadoras').update(patch).eq('id',jid);
+  }
+  APP_EXTRA={};
   closeModal();await loadAdmin();renderDetalle(jid);
+}
+
+function modalEditMed(medId,jid){
+  var m=APP.meds.find(function(x){return x.id===medId;});
+  if(!m){alert('No encontré esa medición');return;}
+  showModal('Editar medición N'+m.n_medicion+' — '+APP.selJug.nombre,
+    '<div class="form-row"><div class="form-group"><label>Fecha</label><input id="emf" value="'+(m.fecha||'')+'" placeholder="DD/MM/AAAA"/></div><div class="form-group"><label>N° medición</label><input id="emn2" type="number" value="'+m.n_medicion+'"/></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Peso (kg)</label><input id="empe" type="number" step="0.01" value="'+(m.peso!=null?m.peso:'')+'"/></div><div class="form-group"><label>Talla (cm)</label><input id="emta" type="number" step="0.1" value="'+(m.talla!=null?m.talla:'')+'"/></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Masa Adiposa (kg)</label><input id="emma" type="number" step="0.001" value="'+m.masa_adiposa+'"/></div><div class="form-group"><label>Masa Muscular (kg)</label><input id="emmm" type="number" step="0.001" value="'+m.masa_muscular+'"/></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Masa Ósea (kg)</label><input id="emmo" type="number" step="0.001" value="'+m.masa_osea+'"/></div><div class="form-group"><label>S6P (mm)</label><input id="ems6" type="number" step="0.1" value="'+m.s6p+'"/></div></div>'+
+    '<div id="emerr"></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveEditMed('+medId+','+jid+')">Guardar cambios</button>');
+}
+async function saveEditMed(medId,jid){
+  var ma=parseFloat($('emma').value),mm=parseFloat($('emmm').value),mo=parseFloat($('emmo').value),s6p=parseFloat($('ems6').value);
+  if(!ma||!mm||!mo||!s6p){$('emerr').innerHTML='<div class="msg-error">Completá MA, MM, MO y S6P</div>';return;}
+  var imo=mo>0?Math.round(mm/mo*100)/100:0;
+  var r=await sb.from('mediciones').update({fecha:$('emf').value||'—',n_medicion:parseInt($('emn2').value),peso:parseFloat($('empe').value)||null,talla:parseFloat($('emta').value)||null,masa_adiposa:ma,masa_muscular:mm,masa_osea:mo,s6p:s6p,imo:imo}).eq('id',medId);
+  if(r.error){$('emerr').innerHTML='<div class="msg-error">'+r.error.message+'</div>';return;}
+  closeModal();await loadAdmin();renderDetalle(jid);
+}
+async function deleteMed(medId,jid){
+  if(!confirm('¿Borrar esta medición? No se puede deshacer.'))return;
+  await sb.from('mediciones').delete().eq('id',medId);
+  await loadAdmin();renderDetalle(jid);
 }
 
 async function modalObj(jid){
@@ -652,6 +865,76 @@ async function saveNota(jid){
   closeModal();await loadAdmin();renderDetalle(jid);
 }
 
+// ── PLAN NUTRICIONAL (PDF) ─────────────────────────────────
+function modalPlan(jid){
+  var j=APP.jugs.find(function(x){return x.id===jid;});
+  if(!j)return;
+  var actual=j.plan_pdf_url?('<div style="margin-bottom:12px;font-size:13px">Plan actual: <a href="'+j.plan_pdf_url+'" target="_blank" style="color:#2E75B6;font-weight:600">'+(j.plan_pdf_nombre||'ver PDF')+'</a> <button class="btn btn-secondary btn-sm" style="margin-left:6px" onclick="quitarPlan('+jid+')">Quitar</button></div>'):'';
+  showModal('Plan nutricional — '+j.nombre,
+    actual+
+    '<div style="font-size:12px;color:#888;margin-bottom:8px">Subí el PDF del plan. Si ya tenía uno, se reemplaza.</div>'+
+    '<input type="file" id="planfile" accept="application/pdf"/>'+
+    '<div id="planerr" style="margin-top:10px"></div><div id="planok"></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cerrar</button><button class="btn btn-primary" onclick="subirPlan('+jid+')">Subir</button>');
+}
+async function subirPlan(jid){
+  var f=$('planfile')&&$('planfile').files[0];
+  var err=$('planerr');
+  if(!f){err.innerHTML='<div class="msg-error">Elegí un archivo PDF</div>';return;}
+  err.innerHTML='<div style="font-size:12px;color:#888">Subiendo...</div>';
+  var path=jid+'_'+Date.now()+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  var res=await subirArchivoStorage('planes',path,f);
+  if(res.error){err.innerHTML='<div class="msg-error">'+res.error.message+'</div>';return;}
+  var hoy=new Date();var fechaTxt=String(hoy.getDate()).padStart(2,'0')+'/'+String(hoy.getMonth()+1).padStart(2,'0')+'/'+hoy.getFullYear();
+  var r=await sb.from('jugadoras').update({plan_pdf_url:res.url,plan_pdf_nombre:f.name,plan_pdf_fecha:fechaTxt}).eq('id',jid);
+  if(r.error){err.innerHTML='<div class="msg-error">'+r.error.message+'</div>';return;}
+  closeModal();await loadAdmin();renderDetalle(jid);
+}
+async function quitarPlan(jid){
+  if(!confirm('¿Quitar el plan nutricional de esta jugadora?'))return;
+  await sb.from('jugadoras').update({plan_pdf_url:null,plan_pdf_nombre:null,plan_pdf_fecha:null}).eq('id',jid);
+  closeModal();await loadAdmin();renderDetalle(jid);
+}
+
+// ── BAREMOS POR DEPORTE ────────────────────────────────────
+function modalBaremos(){
+  var deportes=Object.keys(APP.baremos);
+  var rows=deportes.map(function(d){
+    var b=APP.baremos[d];
+    return '<div class="card" style="margin-bottom:10px"><div class="card-title">'+d+'</div>'+
+      '<div class="form-row"><div class="form-group"><label>MA óptimo ≤</label><input id="b_'+d+'_mao" type="number" step="0.1" value="'+b.ma_optimo+'"/></div><div class="form-group"><label>MA revisar ≤</label><input id="b_'+d+'_mar" type="number" step="0.1" value="'+b.ma_revisar+'"/></div></div>'+
+      '<div class="form-row"><div class="form-group"><label>IMO óptimo ≥</label><input id="b_'+d+'_imoo" type="number" step="0.01" value="'+b.imo_optimo+'"/></div><div class="form-group"><label>IMO revisar ≥</label><input id="b_'+d+'_imor" type="number" step="0.01" value="'+b.imo_revisar+'"/></div></div>'+
+      '<div class="form-row"><div class="form-group"><label>S6P óptimo ≤</label><input id="b_'+d+'_s6o" type="number" step="1" value="'+b.s6p_optimo+'"/></div><div class="form-group"><label>S6P revisar ≤</label><input id="b_'+d+'_s6r" type="number" step="1" value="'+b.s6p_revisar+'"/></div></div>'+
+      '<button class="btn btn-secondary btn-sm" onclick="guardarBaremo(&quot;'+d+'&quot;)">Guardar '+d+'</button></div>';
+  }).join('');
+  showModal('Baremos por deporte',
+    rows+
+    '<div class="card"><div class="card-title">+ Agregar deporte nuevo</div>'+
+    '<div class="form-group"><label>Nombre del deporte</label><input id="bnuevo" placeholder="Ej: Vóley"/></div>'+
+    '<div id="baerr"></div>'+
+    '<button class="btn btn-secondary btn-sm" onclick="agregarDeporte()">Agregar (con valores de Rugby por defecto)</button></div>',
+    '<button class="btn btn-secondary" onclick="closeModal();renderAdmin()">Cerrar</button>');
+}
+async function guardarBaremo(d){
+  var val=function(id){return parseFloat($(id).value);};
+  var r=await sb.from('baremos').update({
+    ma_optimo:val('b_'+d+'_mao'),ma_revisar:val('b_'+d+'_mar'),
+    imo_optimo:val('b_'+d+'_imoo'),imo_revisar:val('b_'+d+'_imor'),
+    s6p_optimo:val('b_'+d+'_s6o'),s6p_revisar:val('b_'+d+'_s6r')
+  }).eq('deporte',d);
+  if(r.error){alert('Error: '+r.error.message);return;}
+  await loadBaremos();
+  alert('¡Baremo de '+d+' actualizado!');
+}
+async function agregarDeporte(){
+  var n=$('bnuevo')?$('bnuevo').value.trim():'';
+  if(!n){$('baerr').innerHTML='<div class="msg-error">Poné un nombre</div>';return;}
+  var r=await sb.from('baremos').insert({deporte:n,ma_optimo:18,ma_revisar:22,imo_optimo:3.8,imo_revisar:3.5,s6p_optimo:80,s6p_revisar:100});
+  if(r.error){$('baerr').innerHTML='<div class="msg-error">'+r.error.message+'</div>';return;}
+  await loadBaremos();
+  modalBaremos();
+}
+
 // ── EXPORTAR ──────────────────────────────────────────────
 function exportarJugadora(jid){
   var j=APP.jugs.find(function(x){return x.id===jid;});
@@ -661,10 +944,130 @@ function exportarJugadora(jid){
 function exportarPlantel(){
   window.print();
 }
+function exportarExcelPlantel(){
+  var jugs=APP.jugs.filter(function(j){return j.plantel_id===APP.selPlantel.id;});
+  var filas=[];
+  jugs.forEach(function(j){
+    var meds=medsJ(j.id);
+    if(!meds.length){filas.push({Jugadora:j.nombre,Deporte:j.deporte||'',Posicion:j.posicion||'',Fecha:'',N:'',Peso:'',Talla:'',MasaAdiposa:'',MasaMuscular:'',MasaOsea:'',S6P:'',IMO:''});return;}
+    meds.forEach(function(m){
+      filas.push({Jugadora:j.nombre,Deporte:j.deporte||'',Posicion:j.posicion||'',Fecha:m.fecha||'',N:m.n_medicion,Peso:m.peso,Talla:m.talla,MasaAdiposa:m.masa_adiposa,MasaMuscular:m.masa_muscular,MasaOsea:m.masa_osea,S6P:m.s6p,IMO:m.imo});
+    });
+  });
+  var ws=XLSX.utils.json_to_sheet(filas);
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Mediciones');
+  XLSX.writeFile(wb,'Polital_'+APP.selPlantel.nombre.replace(/\s+/g,'_')+'.xlsx');
+}
 
+
+// ── CARGA MASIVA DE ZIP (tira completa) ────────────────────
+function normalizeNombre(s){
+  return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+var ZIP_REVIEW=[];
+function modalCargarZip(){
+  ZIP_REVIEW=[];
+  showModal('Cargar tira completa (ZIP)',
+    '<div id="zipdrop" class="dropzone" ondragover="dzOver(event)" ondragleave="dzLeave(event)" ondrop="dzDropZip(event)" onclick="document.getElementById(&quot;zipfile&quot;).click()">'+
+      '📦 Arrastrá el ZIP de la tira acá, o hacé click para elegirlo<br/><span style="font-size:11px">Una carpeta por jugadora, como veníamos usando</span>'+
+    '</div>'+
+    '<input type="file" id="zipfile" accept=".zip" style="display:none" onchange="handleZipFile(this.files[0])"/>'+
+    '<div id="zipstatus"></div><div id="zipreview"></div>',
+    '<button class="btn btn-secondary" onclick="closeModal();renderAdmin()">Cerrar</button><button class="btn btn-primary hidden" id="zipCargarBtn" onclick="insertarZipReview()">Cargar todo</button>');
+}
+function dzDropZip(e){
+  e.preventDefault();e.currentTarget.classList.remove('drag');
+  var f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f)handleZipFile(f);
+}
+async function handleZipFile(file){
+  var st=$('zipstatus');
+  if(!file)return;
+  st.innerHTML='<div style="font-size:12px;color:#888">Leyendo ZIP...</div>';
+  try{
+    var zip=await JSZip.loadAsync(file);
+    var porCarpeta={};
+    var nombres=Object.keys(zip.files);
+    for(var i=0;i<nombres.length;i++){
+      var entry=zip.files[nombres[i]];
+      if(entry.dir)continue;
+      if(!/\.xlsm$/i.test(entry.name))continue;
+      var partes=entry.name.split('/');
+      if(partes.length<2)continue;
+      var carpeta=partes[0];
+      var fname=partes[partes.length-1];
+      var buf=await entry.async('arraybuffer');
+      var wb;
+      try{wb=XLSX.read(new Uint8Array(buf),{type:'array'});}catch(e){continue;}
+      var d=leerExcelMedicion(wb);
+      if(d.error)continue;
+      (porCarpeta[carpeta]=porCarpeta[carpeta]||[]).push({fname:fname,d:d,fecha:parseFechaDeNombre(fname)||d.fechaHoja||null});
+    }
+    // dedup exacto dentro de cada carpeta (mismo patron que usamos a mano)
+    var filas=[];
+    Object.keys(porCarpeta).sort().forEach(function(carpeta){
+      var arr=porCarpeta[carpeta];
+      var vistos={};
+      var unicos=[];
+      arr.forEach(function(r){
+        var key=[r.d.ma&&r.d.ma.toFixed(6),r.d.mm&&r.d.mm.toFixed(6),r.d.mo,r.d.s6p].join('|');
+        if(!vistos[key]){vistos[key]=r;unicos.push(r);}
+        else if(r.fecha&&vistos[key].fecha&&r.fecha<vistos[key].fecha){
+          var idx=unicos.indexOf(vistos[key]);unicos[idx]=r;vistos[key]=r;
+        }
+      });
+      unicos.sort(function(a,b){return (a.fecha||'9999')<(b.fecha||'9999')?-1:1;});
+      var norm=normalizeNombre(carpeta);
+      var match=APP.jugs.find(function(j){return normalizeNombre(j.nombre)===norm;});
+      if(!match)match=APP.jugs.find(function(j){return normalizeNombre(j.nombre).indexOf(norm)>=0||norm.indexOf(normalizeNombre(j.nombre))>=0;});
+      unicos.forEach(function(r){
+        filas.push({carpeta:carpeta,jugId:match?match.id:'',fname:r.fname,fecha:r.fecha||'',peso:r.d.peso,talla:r.d.talla,ma:r.d.ma,mm:r.d.mm,mo:r.d.mo,s6p:r.d.s6p,incluir:true});
+      });
+    });
+    ZIP_REVIEW=filas;
+    st.innerHTML='<div class="msg-success">✅ '+filas.length+' mediciones encontradas en '+Object.keys(porCarpeta).length+' carpetas. Revisá abajo antes de cargar (la jugadora sin match queda en blanco, elegila a mano).</div>';
+    renderZipReview();
+    var btn=$('zipCargarBtn');if(btn)btn.classList.remove('hidden');
+  }catch(err){
+    st.innerHTML='<div class="msg-error">No pude leer el ZIP: '+err.message+'</div>';
+  }
+}
+function renderZipReview(){
+  var jugOpts=APP.jugs.slice().sort(function(a,b){return a.nombre.localeCompare(b.nombre);})
+    .map(function(j){return '<option value="'+j.id+'">'+j.nombre+'</option>';}).join('');
+  var rows=ZIP_REVIEW.map(function(r,i){
+    return '<tr>'+
+      '<td><input type="checkbox" '+(r.incluir?'checked':'')+' onchange="ZIP_REVIEW['+i+'].incluir=this.checked"/></td>'+
+      '<td style="font-size:11px">'+r.carpeta+'<br/><span style="color:#aaa">'+r.fname+'</span></td>'+
+      '<td><select style="font-size:12px;padding:4px" onchange="ZIP_REVIEW['+i+'].jugId=parseInt(this.value)||\'\'"><option value="">Sin match</option>'+jugOpts.replace('value="'+r.jugId+'"','value="'+r.jugId+'" selected')+'</select></td>'+
+      '<td><input style="width:90px;font-size:12px;padding:4px" value="'+r.fecha+'" onchange="ZIP_REVIEW['+i+'].fecha=this.value"/></td>'+
+      '<td><input style="width:60px;font-size:12px;padding:4px" type="number" step="0.001" value="'+r.ma+'" onchange="ZIP_REVIEW['+i+'].ma=parseFloat(this.value)"/></td>'+
+      '<td><input style="width:60px;font-size:12px;padding:4px" type="number" step="0.001" value="'+r.mm+'" onchange="ZIP_REVIEW['+i+'].mm=parseFloat(this.value)"/></td>'+
+      '<td><input style="width:60px;font-size:12px;padding:4px" type="number" step="0.001" value="'+r.mo+'" onchange="ZIP_REVIEW['+i+'].mo=parseFloat(this.value)"/></td>'+
+      '<td><input style="width:55px;font-size:12px;padding:4px" type="number" step="0.1" value="'+r.s6p+'" onchange="ZIP_REVIEW['+i+'].s6p=parseFloat(this.value)"/></td>'+
+    '</tr>';
+  }).join('');
+  $('zipreview').innerHTML='<div style="overflow-x:auto"><table class="data-table" style="font-size:12px"><thead><tr><th></th><th>Archivo</th><th>Jugadora</th><th>Fecha</th><th>MA</th><th>MM</th><th>MO</th><th>S6P</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+async function insertarZipReview(){
+  var contadores={};
+  var okCount=0,errCount=0;
+  for(var i=0;i<ZIP_REVIEW.length;i++){
+    var r=ZIP_REVIEW[i];
+    if(!r.incluir||!r.jugId)continue;
+    if(contadores[r.jugId]==null)contadores[r.jugId]=medsJ(r.jugId).length;
+    contadores[r.jugId]++;
+    var imo=r.mo>0?Math.round(r.mm/r.mo*100)/100:0;
+    var res=await sb.from('mediciones').insert({jugadora_id:r.jugId,fecha:r.fecha||'—',n_medicion:contadores[r.jugId],peso:r.peso||null,talla:r.talla||null,masa_adiposa:r.ma,masa_muscular:r.mm,masa_osea:r.mo,s6p:r.s6p,imo:imo});
+    if(res.error)errCount++;else okCount++;
+  }
+  closeModal();await loadAdmin();renderAdmin();
+  alert('Listo: '+okCount+' mediciones cargadas'+(errCount?', '+errCount+' con error':'')+'.');
+}
 
 // ── INIT ──────────────────────────────────────────────────
-renderLogin();
+bootstrap();
 </script>
 </body>
 </html>
