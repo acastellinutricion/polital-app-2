@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#1F4E79"/>
 <title>Polital</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f7fa;color:#1a1a2e;min-height:100vh}
@@ -90,6 +91,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .filter-btn{padding:6px 12px;font-size:12px;border-radius:20px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer}
 .filter-btn.active{background:#1F4E79;color:#fff;border-color:#1F4E79}
 .chart-box{position:relative;height:260px;width:100%}
+.dropzone{border:2px dashed #c7d2e0;border-radius:10px;padding:16px;text-align:center;font-size:13px;color:#888;margin-bottom:14px;cursor:pointer;transition:border-color .15s,background .15s}
+.dropzone:hover{border-color:#2E75B6;background:#f8fafc}
+.dropzone.drag{border-color:#1F4E79;background:#eef4fa;color:#1F4E79}
 .hidden{display:none!important}
 @media(max-width:500px){.metric-grid{grid-template-columns:1fr 1fr}.form-row{grid-template-columns:1fr}.stats-grid{grid-template-columns:1fr 1fr}.progress-label{width:120px}}
 @media print{.nav,.tabs,.btn,.back-btn,.logout-btn{display:none!important}body{background:#fff}.card{break-inside:avoid}}
@@ -190,23 +194,29 @@ function render(html){destroyCharts();$('app').innerHTML=html;}
 function destroyCharts(){APP.charts.forEach(c=>{try{c.destroy()}catch(e){}});APP.charts=[];}
 
 // ── CHART BUILDER ─────────────────────────────────────────
-function buildChart(canvasId,meds){
-  const ctx=$(canvasId);
-  if(!ctx)return;
+// Un grafico separado por cada masa/indicador (mas claro que uno solo con todo mezclado)
+var CHART_SPECS=[
+  {key:'masa_adiposa',suf:'MA',label:'Masa Adiposa (kg)',color:'#C55A11'},
+  {key:'imo',suf:'IMO',label:'IMO (MM/MO)',color:'#2E75B6'},
+  {key:'s6p',suf:'S6P',label:'S6P (mm)',color:'#70AD47'}
+];
+function chartBoxesHtml(prefix,titulo){
+  return CHART_SPECS.map(function(s){
+    return '<div class="card"><div class="card-title">'+titulo+' — '+s.label+'</div><div class="chart-box" style="height:190px"><canvas id="'+prefix+s.suf+'"></canvas></div></div>';
+  }).join('');
+}
+function buildCharts(prefix,meds){
   const labels=meds.map(m=>'N'+m.n_medicion);
-  const ch=new Chart(ctx,{
-    type:'line',
-    data:{labels:labels,datasets:[
-      {label:'M.Adiposa',data:meds.map(m=>m.masa_adiposa),borderColor:'#C55A11',backgroundColor:'#C55A11',tension:.3,pointRadius:4},
-      {label:'IMO',data:meds.map(m=>m.imo),borderColor:'#2E75B6',backgroundColor:'#2E75B6',tension:.3,pointRadius:4,yAxisID:'y1'},
-      {label:'S6P',data:meds.map(m=>m.s6p),borderColor:'#70AD47',backgroundColor:'#70AD47',tension:.3,pointRadius:4}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
-      scales:{y:{position:'left',title:{display:true,text:'MA / S6P',font:{size:10}}},
-        y1:{position:'right',title:{display:true,text:'IMO',font:{size:10}},grid:{drawOnChartArea:false},min:0,max:6}}}
+  CHART_SPECS.forEach(function(s){
+    const ctx=$(prefix+s.suf);
+    if(!ctx)return;
+    const ch=new Chart(ctx,{
+      type:'line',
+      data:{labels:labels,datasets:[{label:s.label,data:meds.map(function(m){return m[s.key];}),borderColor:s.color,backgroundColor:s.color,tension:.3,pointRadius:4,fill:false}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:s.label,font:{size:10}}}}}
+    });
+    APP.charts.push(ch);
   });
-  APP.charts.push(ch);
 }
 
 // ── DIFF HELPERS ──────────────────────────────────────────
@@ -339,7 +349,7 @@ function renderJugadora(tab){
   } else if(tab==='evolucion'){
     if(meds.length<2){content='<div class="card" style="text-align:center;color:#888;padding:2rem">Necesitás al menos 2 mediciones para ver la evolución.</div>';}
     else{
-      content='<div class="card"><div class="card-title">📈 Tu evolución</div><div class="chart-box"><canvas id="jugChart"></canvas></div></div>';
+      content=chartBoxesHtml('jug','📈 Tu evolución');
       var rows='';
       meds.forEach(function(m,i){var prev=i>0?meds[i-1]:null;var ma=eMA(m.masa_adiposa),imo=eIMO(m.imo),s6p=eS6P(m.s6p);
         rows+='<tr><td>N'+m.n_medicion+'</td><td>'+(m.fecha||'—')+'</td><td style="color:'+ma.h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td>'+(prev?diffArrow(m.masa_adiposa,prev.masa_adiposa,false):'')+'</td><td style="color:'+imo.h+';font-weight:600">'+f2(m.imo)+'</td><td>'+(prev?diffArrow(m.imo,prev.imo,true):'')+'</td><td style="color:'+s6p.h+';font-weight:600">'+f0(m.s6p)+'</td><td>'+(prev?diffArrow(m.s6p,prev.s6p,false):'')+'</td></tr>';
@@ -351,7 +361,7 @@ function renderJugadora(tab){
     content='<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden"><table class="data-table"><thead><tr><th>Fecha</th><th>N°</th><th>MA (kg)</th><th>IMO</th><th>S6P (mm)</th></tr></thead><tbody>'+(rows2||'<tr><td colspan=5 style="text-align:center;color:#aaa;padding:2rem">Sin mediciones</td></tr>')+'</tbody></table></div>';
   }
   render(nav+'<div class="page">'+header+tabs+content+'</div>');
-  if(tab==='evolucion'&&meds.length>=2)setTimeout(function(){buildChart('jugChart',meds);},50);
+  if(tab==='evolucion'&&meds.length>=2)setTimeout(function(){buildCharts('jug',meds);},50);
 }
 
 // ── ADMIN ─────────────────────────────────────────────────
@@ -428,10 +438,19 @@ function renderAdmin(tab){
   if(tab==='comparar')setTimeout(function(){buildCompareChart(jugs);},50);
 }
 
+function miniResumen(u){
+  if(!u)return '<div style="font-size:12px;color:#aaa">Sin mediciones</div>';
+  var ma=eMA(u.masa_adiposa),imo=eIMO(u.imo),s6p=eS6P(u.s6p);
+  return '<div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">'+
+    '<span class="metric-badge '+ma.c+'" style="font-size:10px;padding:2px 7px">MA '+f2(u.masa_adiposa)+'</span>'+
+    '<span class="metric-badge '+imo.c+'" style="font-size:10px;padding:2px 7px">IMO '+f2(u.imo)+'</span>'+
+    '<span class="metric-badge '+s6p.c+'" style="font-size:10px;padding:2px 7px">S6P '+f0(u.s6p)+'</span>'+
+  '</div>';
+}
 function renderPlantelListHtml(jugs){
   if(!jugs.length)return '<div style="text-align:center;color:#aaa;padding:2rem">No hay jugadoras que coincidan</div>';
   return jugs.map(function(j){var u=ultima(j.id);var pr=prio(pts(u));
-    return '<div class="player-item" onclick="renderDetalle('+j.id+')"><div style="display:flex;align-items:center;gap:12px"><div class="player-avatar">'+ini(j.nombre)+'</div><div><div style="font-size:14px;font-weight:500">'+j.nombre+'</div>'+(u?'<div style="font-size:12px;color:#888">MA: '+f2(u.masa_adiposa)+' · IMO: '+f2(u.imo)+' · S6P: '+f0(u.s6p)+'</div>':'<div style="font-size:12px;color:#aaa">Sin mediciones</div>')+'</div></div>'+(u?'<span class="metric-badge '+pr.c+'" style="font-size:11px">'+pr.l+'</span>':'')+'</div>';
+    return '<div class="player-item" onclick="renderDetalle('+j.id+')"><div style="display:flex;align-items:center;gap:12px"><div class="player-avatar">'+ini(j.nombre)+'</div><div><div style="font-size:14px;font-weight:500">'+j.nombre+'</div>'+miniResumen(u)+'</div></div>'+(u?'<span class="metric-badge '+pr.c+'" style="font-size:11px">'+pr.l+'</span>':'')+'</div>';
   }).join('');
 }
 function renderAdminPlantelList(){
@@ -471,7 +490,7 @@ function renderDetalle(jid){
       '<div class="metric-card" style="border-top:3px solid '+s6p.h+'"><div class="metric-label">S6P</div><div class="metric-value">'+f0(ult.s6p)+'</div><span class="metric-badge '+s6p.c+'">'+s6p.l+'</span></div></div>';
   }
   if(j.notas)content+='<div class="card" style="background:#FFF9E6"><div class="card-title">📝 Nota privada</div><div style="font-size:13px;color:#555">'+j.notas+'</div></div>';
-  if(meds.length>=2)content+='<div class="card"><div class="card-title">📈 Evolución</div><div class="chart-box"><canvas id="detChart"></canvas></div></div>';
+  if(meds.length>=2)content+=chartBoxesHtml('det','📈 Evolución');
   var rows=meds.slice().reverse().map(function(m,i,arr){var prev=arr[i+1];
     return '<tr><td>'+(m.fecha||'—')+'</td><td style="font-weight:600">N'+m.n_medicion+'</td><td>'+(m.peso||'—')+'</td>'+
       '<td style="color:'+eMA(m.masa_adiposa).h+';font-weight:600">'+f2(m.masa_adiposa)+'</td><td>'+(prev?diffArrow(m.masa_adiposa,prev.masa_adiposa,false):'')+'</td>'+
@@ -480,7 +499,7 @@ function renderDetalle(jid){
   }).join('');
   content+='<div style="background:#fff;border:1px solid #e5e9f0;border-radius:12px;overflow:hidden;overflow-x:auto;margin-top:1rem"><table class="data-table"><thead><tr><th>Fecha</th><th>N°</th><th>Peso</th><th>MA</th><th>Δ</th><th>IMO</th><th>Δ</th><th>S6P</th><th>Δ</th></tr></thead><tbody>'+(rows||'<tr><td colspan=9 style="text-align:center;color:#aaa;padding:2rem">Sin mediciones</td></tr>')+'</tbody></table></div>';
   render(nav+'<div class="page">'+content+'</div>');
-  if(meds.length>=2)setTimeout(function(){buildChart('detChart',meds);},50);
+  if(meds.length>=2)setTimeout(function(){buildCharts('det',meds);},50);
 }
 
 // ── MODALES ───────────────────────────────────────────────
@@ -533,9 +552,61 @@ async function saveJug(){
   closeModal();await loadAdmin();renderAdmin();
 }
 
+// ── LECTOR DE EXCEL (Proc datos brutos) ───────────────────
+function parseFechaDeNombre(filename){
+  var m=filename.match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
+  if(!m)return null;
+  var d=parseInt(m[1],10),mo=parseInt(m[2],10),y=parseInt(m[3],10);
+  if(y>100)y=parseInt(String(y).slice(0,2),10);
+  if(y<100)y+=2000;
+  if(mo<1||mo>12||d<1||d>31)return null;
+  return String(d).padStart(2,'0')+'/'+String(mo).padStart(2,'0')+'/'+y;
+}
+function handleExcelFile(file){
+  var elErr=$('mxerr'),elOk=$('mxok');
+  if(elErr)elErr.innerHTML='';
+  if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      var sheetName=wb.SheetNames.find(function(n){return n.trim()==='Proc datos brutos';});
+      if(!sheetName){if(elErr)elErr.innerHTML='<div class="msg-error">No encontré la hoja "Proc datos brutos" en ese archivo.</div>';return;}
+      var ws=wb.Sheets[sheetName];
+      var cell=function(ref){var c=ws[ref];return c?c.v:null;};
+      var peso=cell('B6'),talla=cell('B7'),ma=cell('I50'),mm=cell('I51'),mo=cell('I53'),s6p=cell('B50');
+      if(ma==null||mm==null||mo==null||s6p==null){if(elErr)elErr.innerHTML='<div class="msg-error">El archivo no tiene todos los valores esperados (MA/MM/MO/S6P). Revisalo a mano.</div>';return;}
+      if($('mpe'))$('mpe').value=peso!=null?peso:'';
+      if($('mta'))$('mta').value=talla!=null?talla:'';
+      if($('mma'))$('mma').value=typeof ma==='number'?ma.toFixed(3):ma;
+      if($('mmm'))$('mmm').value=typeof mm==='number'?mm.toFixed(3):mm;
+      if($('mmo'))$('mmo').value=typeof mo==='number'?mo.toFixed(3):mo;
+      if($('ms6'))$('ms6').value=typeof s6p==='number'?s6p.toFixed(1):s6p;
+      var fechaNombre=parseFechaDeNombre(file.name);
+      if(fechaNombre&&$('mf')&&!$('mf').value)$('mf').value=fechaNombre;
+      if(elOk)elOk.innerHTML='<div class="msg-success">✅ Datos leídos de "'+file.name+'". Revisá los valores y la fecha antes de guardar.</div>';
+    }catch(err){
+      if(elErr)elErr.innerHTML='<div class="msg-error">No pude leer ese archivo (¿es un .xlsm/.xlsx válido?): '+err.message+'</div>';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function dzOver(e){e.preventDefault();e.currentTarget.classList.add('drag');}
+function dzLeave(e){e.currentTarget.classList.remove('drag');}
+function dzDrop(e){
+  e.preventDefault();e.currentTarget.classList.remove('drag');
+  var f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f)handleExcelFile(f);
+}
+
 function modalAddMed(jid){
   var nextN=medsJ(jid).length+1;
   showModal('Nueva medición — '+APP.selJug.nombre,
+    '<div id="dropzone" class="dropzone" ondragover="dzOver(event)" ondragleave="dzLeave(event)" ondrop="dzDrop(event)" onclick="document.getElementById(&quot;mfile&quot;).click()">'+
+      '📎 Arrastrá el Excel (.xlsm) acá, o hacé click para elegirlo<br/><span style="font-size:11px">Autocompleta peso, talla, MA, MM, MO y S6P</span>'+
+    '</div>'+
+    '<input type="file" id="mfile" accept=".xlsm,.xlsx" style="display:none" onchange="handleExcelFile(this.files[0])"/>'+
+    '<div id="mxok"></div><div id="mxerr"></div>'+
     '<div class="form-row"><div class="form-group"><label>Fecha</label><input id="mf" placeholder="DD/MM/AAAA"/></div><div class="form-group"><label>N° medición</label><input id="mn2" type="number" value="'+nextN+'"/></div></div>'+
     '<div class="form-row"><div class="form-group"><label>Peso (kg)</label><input id="mpe" type="number" step="0.01"/></div><div class="form-group"><label>Talla (cm)</label><input id="mta" type="number" step="0.1"/></div></div>'+
     '<div class="form-row"><div class="form-group"><label>Masa Adiposa (kg)</label><input id="mma" type="number" step="0.001"/></div><div class="form-group"><label>Masa Muscular (kg)</label><input id="mmm" type="number" step="0.001"/></div></div>'+
