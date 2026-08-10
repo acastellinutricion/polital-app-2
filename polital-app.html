@@ -536,6 +536,8 @@ function renderAdmin(tab){
       '<div class="section-title">Estado del plantel</div>';
     var estados=[['MA en rango',ultimas.filter(function(m){return m.masa_adiposa<=22;}).length,'#1F7A4A'],['IMO óptimo',ultimas.filter(function(m){return m.imo>=3.8;}).length,'#2E75B6'],['S6P óptimo',ultimas.filter(function(m){return m.s6p<=80;}).length,'#70AD47']];
     estados.forEach(function(e){content+='<div class="progress-item"><div class="progress-label">'+e[0]+'</div><div class="progress-track"><div class="progress-fill" style="width:'+(n?(e[1]/n*100).toFixed(0):0)+'%;background:'+e[2]+'"></div></div><div class="progress-val" style="color:'+e[2]+'">'+e[1]+'/'+n+'</div></div>';});
+    content+='<div class="section-title">Cuadro de clasificación (masa grasa × masa muscular)</div>';
+    content+=punnettHtml(jugs);
     if(jugs.some(function(j){return medsJ(j.id).length>=2;})){
       content+='<div class="section-title">Evolución promedio del plantel</div>';
       content+=chartBoxesHtml('team','📈 Promedio plantel');
@@ -553,6 +555,40 @@ function renderAdmin(tab){
   if(tab==='resumen')setTimeout(function(){buildTeamCharts(jugs);},50);
 }
 
+// ── CUADRO DE PUNNETT (Grasa x Músculo) ────────────────────
+function quadrantOf(u,deporte){
+  var b=baremoDe(deporte);
+  var grasaOk=u.masa_adiposa<=b.ma_optimo;
+  var muscOk=u.imo>=b.imo_optimo;
+  if(grasaOk&&muscOk)return 'verde';
+  if(grasaOk&&!muscOk)return 'naranja';
+  if(!grasaOk&&muscOk)return 'amarillo';
+  return 'rojo';
+}
+function punnettHtml(jugs){
+  var q={verde:[],naranja:[],amarillo:[],rojo:[]};
+  var sinMed=[];
+  jugs.forEach(function(j){
+    var u=ultima(j.id);
+    if(!u){sinMed.push(j);return;}
+    q[quadrantOf(u,j.deporte)].push(j);
+  });
+  function cell(list,bg,fg,label,sub){
+    var names=list.length?list.map(function(j){return '<div style="padding:3px 0;cursor:pointer;text-decoration:underline dotted" onclick="renderDetalle('+j.id+')">'+j.nombre+'</div>';}).join(''):'<div style="opacity:.5">—</div>';
+    return '<div style="background:'+bg+';border-radius:10px;padding:12px;min-height:110px">'+
+      '<div style="font-size:11px;font-weight:700;color:'+fg+';text-transform:uppercase;margin-bottom:2px">'+label+'</div>'+
+      '<div style="font-size:10px;color:'+fg+';opacity:.8;margin-bottom:8px">'+sub+' ('+list.length+')</div>'+
+      '<div style="font-size:12px;color:'+fg+'">'+names+'</div></div>';
+  }
+  var grid='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'+
+    cell(q.verde,'#C6EFCE','#1F7A4A','Óptimo','Grasa OK · Músculo OK')+
+    cell(q.amarillo,'#FFEB9C','#9C6500','Reducir grasa','Grasa alta · Músculo OK')+
+    cell(q.naranja,'#FFE1B3','#B36B00','Ganar músculo','Grasa OK · Músculo bajo')+
+    cell(q.rojo,'#FFC7CE','#9C0006','Prioridad alta','Grasa alta · Músculo bajo')+
+  '</div>';
+  if(sinMed.length)grid+='<div style="font-size:11px;color:#aaa;margin-bottom:1rem">Sin mediciones: '+sinMed.map(function(j){return j.nombre;}).join(', ')+'</div>';
+  return grid;
+}
 function miniResumen(u,deporte,j){
   var extra=[];
   if(j&&j.edad_txt)extra.push(j.edad_txt);
