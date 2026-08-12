@@ -235,6 +235,31 @@ var CHART_SPECS=[
   {key:'imo',objKey:'imo_objetivo',suf:'IMO',label:'IMO (MM/MO)',color:'#2E75B6'},
   {key:'s6p',objKey:'s6p_objetivo',suf:'S6P',label:'S6P (mm)',color:'#70AD47'}
 ];
+// ── REFERENCIA POR PUESTO (valores promedio, no son objetivo personalizado) ──
+var REF_RUGBY={
+  'PILAR IZQUIERDO':[['Masa Ósea (kg)','12,0 - 12,4'],['Masa Muscular (kg)','61,0 - 62,9'],['IMO','4,8 - 5,0'],['Z-Adiposidad','-1']],
+  'HOOKER':[['Masa Ósea (kg)','11,5 - 11,9'],['Masa Muscular (kg)','58,0 - 59,9'],['IMO','4,8 - 5,0'],['Z-Adiposidad','-1,8']],
+  'PILAR DERECHO':[['Masa Ósea (kg)','12,5 - 12,9'],['Masa Muscular (kg)','65,0 - 66,9'],['IMO','5,0 - 5,2'],['Z-Adiposidad','-1']],
+  'SEGUNDA L IZQ Y DER':[['Masa Ósea (kg)','11,5 - 12,9'],['Masa Muscular (kg)','61,0 - 64,9'],['IMO','4,8 - 5,2'],['Z-Adiposidad','-1,8 a -1,99']],
+  'MEDIOSCRUM':[['Masa Ósea (kg)','8,8 - 9,2'],['Masa Muscular (kg)','44,0 - 45,9'],['IMO','4,7 - 4,9'],['Z-Adiposidad','-2,3 a -2,49']],
+  'APERTURA':[['Masa Ósea (kg)','8,7 - 9,1'],['Masa Muscular (kg)','45,5 - 47,4'],['IMO','5,0 - 5,2'],['Z-Adiposidad','-2,2 a -2,39']],
+  'WING (I)':[['Masa Ósea (kg)','9,1 - 9,5'],['Masa Muscular (kg)','43,0 - 44,9'],['IMO','4,5 - 4,7'],['Z-Adiposidad','-2,2 a -2,39']],
+  'WING (D)':[['Masa Ósea (kg)','9,1 - 9,5'],['Masa Muscular (kg)','42,0 - 43,9'],['IMO','4,4 - 4,6'],['Z-Adiposidad','-2,2 a -2,39']],
+  '1ER CENTRO':[['Masa Ósea (kg)','10,0 - 10,4'],['Masa Muscular (kg)','51,0 - 52,9'],['IMO','4,8 - 5,0'],['Z-Adiposidad','-2,2 a -2,39']],
+  '2DO CENTRO':[['Masa Ósea (kg)','10,0 - 10,4'],['Masa Muscular (kg)','49,0 - 50,9'],['IMO','4,7 - 4,9'],['Z-Adiposidad','-2,2 a -2,39']],
+  'FULL BACK':[['Masa Ósea (kg)','9,5 - 9,9'],['Masa Muscular (kg)','50,0 - 51,9'],['IMO','4,8 - 5,0'],['Z-Adiposidad','-2,2 a -2,39']]
+};
+var REF_HOCKEY={}; // pendiente: se completa cuando se cargue el puesto de cada jugadora
+function refCardHtml(deporte,posicion){
+  if(!posicion)return '';
+  var tabla=deporte==='Hockey'?REF_HOCKEY:REF_RUGBY;
+  var filas=tabla[posicion.trim().toUpperCase()];
+  if(!filas)return '';
+  var celdas=filas.map(function(f){return '<div><div style="font-size:11px;color:#aaa">'+f[0]+'</div><div style="font-weight:600;font-size:13px">'+f[1]+'</div></div>';}).join('');
+  return '<div class="card"><div class="card-title">📏 Referencia para tu puesto ('+posicion+')</div>'+
+    '<div style="font-size:11px;color:#888;margin-bottom:10px">Valores promedio de referencia (Plantel Senior / Selección) — no es tu objetivo personalizado</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;text-align:center">'+celdas+'</div></div>';
+}
 function chartBoxesHtml(prefix,titulo){
   return CHART_SPECS.map(function(s){
     return '<div class="card"><div class="card-title">'+titulo+' — '+s.label+'</div><div class="chart-box" style="height:190px"><canvas id="'+prefix+s.suf+'"></canvas></div></div>';
@@ -424,6 +449,7 @@ function renderJugadora(tab){
         });
         content+='</div>';
       }
+      content+=refCardHtml(deportJug,jSess&&jSess.posicion);
     }
   } else if(tab==='evolucion'){
     if(meds.length<2){content='<div class="card" style="text-align:center;color:#888;padding:2rem">Necesitás al menos 2 mediciones para ver la evolución.</div>';}
@@ -666,6 +692,7 @@ async function renderDetalle(jid){
       '<div class="metric-card" style="border-top:3px solid '+imo.h+'"><div class="metric-label">IMO</div><div class="metric-value">'+f2(ult.imo)+'</div><span class="metric-badge '+imo.c+'">'+imo.l+'</span></div>'+
       '<div class="metric-card" style="border-top:3px solid '+s6p.h+'"><div class="metric-label">S6P</div><div class="metric-value">'+f0(ult.s6p)+'</div><span class="metric-badge '+s6p.c+'">'+s6p.l+'</span></div></div>';
   }
+  content+=refCardHtml(j.deporte,j.posicion);
   if(j.notas)content+='<div class="card" style="background:#FFF9E6"><div class="card-title">📝 Nota privada</div><div style="font-size:13px;color:#555">'+j.notas+'</div></div>';
   if(j.plan_pdf_url)content+='<div class="card"><div class="card-title">📎 Plan nutricional</div><a href="'+j.plan_pdf_url+'" target="_blank" style="font-size:13px;color:#2E75B6;font-weight:600">'+(j.plan_pdf_nombre||'Ver PDF')+'</a>'+(j.plan_pdf_fecha?'<div style="font-size:11px;color:#aaa;margin-top:4px">Subido '+j.plan_pdf_fecha+'</div>':'')+'</div>';
   if(meds.length>=2)content+=chartBoxesHtml('det','📈 Evolución');
