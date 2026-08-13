@@ -249,11 +249,28 @@ var REF_RUGBY={
   '2DO CENTRO':[['Masa Ósea (kg)','10,0 - 10,4'],['Masa Muscular (kg)','49,0 - 50,9'],['IMO','4,7 - 4,9'],['Z-Adiposidad','-2,2 a -2,39']],
   'FULL BACK':[['Masa Ósea (kg)','9,5 - 9,9'],['Masa Muscular (kg)','50,0 - 51,9'],['IMO','4,8 - 5,0'],['Z-Adiposidad','-2,2 a -2,39']]
 };
-var REF_HOCKEY={}; // pendiente: se completa cuando se cargue el puesto de cada jugadora
+var REF_HOCKEY={
+  'ARQUERA':[['Masa Adiposa (kg)','20,0 - 22,0'],['Masa Muscular (kg)','33,0 - 35,0'],['S6P (mm)','65'],['IMO','4,11']],
+  'DEFENSORA':[['Masa Adiposa (kg)','14,0 - 18,0'],['Masa Muscular (kg)','27,0 - 35,0'],['S6P (mm)','52 - 55'],['IMO','3,9']],
+  'VOLANTE':[['Masa Adiposa (kg)','13,0 - 15,0'],['Masa Muscular (kg)','25,0 - 27,0'],['S6P (mm)','49 - 56'],['IMO','3,5 - 4,0']],
+  'DELANTERA':[['Masa Adiposa (kg)','14,0 - 17,0'],['Masa Muscular (kg)','27,0 - 30,0'],['S6P (mm)','45 - 55'],['IMO','3,5 - 4,1']]
+};
+var REF_SINONIMOS={
+  'DEFENSORA CENTRAL':'DEFENSORA','DEFENSORA (HALF)':'DEFENSORA','VOLANTE CENTRAL':'VOLANTE',
+  'MEDIOCAMPISTA':'VOLANTE','MEDIOCAMPO':'VOLANTE','LIBERO':'DEFENSORA','HALF':'VOLANTE','DEFENSA':'DEFENSORA'
+};
 function refCardHtml(deporte,posicion){
   if(!posicion)return '';
   var tabla=deporte==='Hockey'?REF_HOCKEY:REF_RUGBY;
-  var filas=tabla[posicion.trim().toUpperCase()];
+  var clean=posicion.replace(/\(.*?\)/g,'').trim().toUpperCase();
+  var candidatos=[clean].concat(clean.split(/[\/,\-]| Y /).map(function(t){return t.trim();}));
+  var filas=null;
+  for(var i=0;i<candidatos.length;i++){
+    var k=candidatos[i];
+    if(!k)continue;
+    filas=tabla[REF_SINONIMOS[k]||k];
+    if(filas)break;
+  }
   if(!filas)return '';
   var celdas=filas.map(function(f){return '<div><div style="font-size:11px;color:#aaa">'+f[0]+'</div><div style="font-weight:600;font-size:13px">'+f[1]+'</div></div>';}).join('');
   return '<div class="card"><div class="card-title">📏 Referencia para tu puesto ('+posicion+')</div>'+
@@ -501,13 +518,15 @@ function renderAdmin(tab){
   tab=tab||'plantel';
   var coach=isCoach();
   if(!APP.selPlantel){render('<div class="page"><div class="card" style="text-align:center;color:#888;padding:2rem">No hay plantel asignado a este usuario.</div></div>');return;}
+  var esParticulares=APP.selPlantel.nombre==='Particulares';
+  if(esParticulares&&(tab==='resumen'||tab==='comparar'))tab='plantel';
   var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div><div class="nav-title">'+(coach?'Polital Entrenador':'Polital Admin')+'</div><div class="nav-sub">'+(coach?APP.selPlantel.nombre:'Hola, Agus')+'</div></div></div><button class="logout-btn" onclick="logout()">Salir</button></nav>';
   var plantelBtns=coach?'':APP.planteles.map(function(p){return '<button class="btn btn-sm '+(p.id===APP.selPlantel.id?'btn-primary':'btn-secondary')+'" onclick="selPlantel('+p.id+')">'+p.nombre+'</button>';}).join('');
   var tabs='<div class="tabs">'+
-    '<button class="tab '+(tab==='plantel'?'active':'')+'" onclick="renderAdmin(&quot;plantel&quot;)">Plantel</button>'+
+    '<button class="tab '+(tab==='plantel'?'active':'')+'" onclick="renderAdmin(&quot;plantel&quot;)">'+(esParticulares?'Particulares':'Plantel')+'</button>'+
     '<button class="tab '+(tab==='alertas'?'active':'')+'" onclick="renderAdmin(&quot;alertas&quot;)">Alertas</button>'+
-    '<button class="tab '+(tab==='resumen'?'active':'')+'" onclick="renderAdmin(&quot;resumen&quot;)">Resumen</button>'+
-    '<button class="tab '+(tab==='comparar'?'active':'')+'" onclick="renderAdmin(&quot;comparar&quot;)">Comparar</button></div>';
+    (esParticulares?'':'<button class="tab '+(tab==='resumen'?'active':'')+'" onclick="renderAdmin(&quot;resumen&quot;)">Resumen</button>'+
+    '<button class="tab '+(tab==='comparar'?'active':'')+'" onclick="renderAdmin(&quot;comparar&quot;)">Comparar</button>')+'</div>';
 
   var jugs=APP.jugs.filter(function(j){return j.plantel_id===APP.selPlantel.id;});
   var ultimas=jugs.map(function(j){return ultima(j.id);}).filter(Boolean);
@@ -743,13 +762,14 @@ async function savePass(){
 
 function deporteOpts(sel){
   var deportes=Object.keys(APP.baremos&&Object.keys(APP.baremos).length?APP.baremos:{Rugby:1,Hockey:1});
+  if(deportes.indexOf('Particular')<0)deportes.push('Particular');
   return deportes.map(function(d){return '<option value="'+d+'"'+(d===sel?' selected':'')+'>'+d+'</option>';}).join('');
 }
 function modalAddJug(){
   var opts=APP.planteles.map(function(p){return '<option value="'+p.id+'"'+(p.id===APP.selPlantel.id?' selected':'')+'>'+p.nombre+'</option>';}).join('');
   showModal('Nueva jugadora',
     '<div class="form-group"><label>Nombre completo</label><input id="mn" placeholder="Ej: María García"/></div>'+
-    '<div class="form-row"><div class="form-group"><label>Plantel</label><select id="mp">'+opts+'</select></div><div class="form-group"><label>Deporte</label><select id="mdep">'+deporteOpts('Rugby')+'</select></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Plantel</label><select id="mp">'+opts+'</select></div><div class="form-group"><label>Deporte</label><select id="mdep">'+deporteOpts(APP.selPlantel.nombre==='Particulares'?'Particular':'Rugby')+'</select></div></div>'+
     '<div class="form-row"><div class="form-group"><label>Usuario</label><input id="mu" placeholder="maria.garcia"/></div><div class="form-group"><label>Contraseña</label><input id="mw" placeholder="clave"/></div></div>'+
     '<div class="form-row"><div class="form-group"><label>Fecha de nacimiento</label><input id="mfnac" placeholder="DD/MM/AAAA"/></div><div class="form-group"><label>Posición</label><input id="mpos" placeholder="Ej: Delantera"/></div></div>'+
     '<div id="merr"></div>',
