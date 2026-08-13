@@ -20,7 +20,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .page{max-width:820px;margin:0 auto;padding:1.25rem}
 .card{background:#fff;border:1px solid #e5e9f0;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
 .card-title{font-size:12px;font-weight:600;color:#888;margin-bottom:14px;text-transform:uppercase;letter-spacing:.05em}
-.metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:1rem}
 .metric-card{background:#fff;border:1px solid #e5e9f0;border-radius:10px;padding:14px;text-align:center}
 .metric-label{font-size:11px;color:#888;margin-bottom:6px}
 .metric-value{font-size:22px;font-weight:600}
@@ -230,8 +230,14 @@ function destroyCharts(){APP.charts.forEach(c=>{try{c.destroy()}catch(e){}});APP
 
 // ── CHART BUILDER ─────────────────────────────────────────
 // Un grafico separado por cada masa/indicador (mas claro que uno solo con todo mezclado)
+// ── Z-ADIPOSA → KG (misma fórmula que la hoja ECUACIONES del Excel, C11:C17) ──
+function kgAdiposaDeZ(z,talla){
+  if(z==null||isNaN(z)||!talla)return null;
+  return (z*5.85+25.6)*Math.pow(talla/170.18,3);
+}
 var CHART_SPECS=[
   {key:'masa_adiposa',objKey:'ma_objetivo',suf:'MA',label:'Masa Adiposa (kg)',color:'#C55A11'},
+  {key:'masa_muscular',objKey:'mm_objetivo',suf:'MM',label:'Masa Muscular (kg)',color:'#2E9E6B'},
   {key:'imo',objKey:'imo_objetivo',suf:'IMO',label:'IMO (MM/MO)',color:'#2E75B6'},
   {key:'s6p',objKey:'s6p_objetivo',suf:'S6P',label:'S6P (mm)',color:'#70AD47'}
 ];
@@ -284,11 +290,20 @@ function chartBoxesHtml(prefix,titulo){
 }
 function buildCharts(prefix,meds,objetivo){
   const labels=meds.map(m=>'N'+m.n_medicion);
+  const ultMed=meds.length?meds[meds.length-1]:null;
+  const tallaUlt=ultMed?ultMed.talla:null;
+  const moseaUlt=ultMed?ultMed.masa_osea:null;
   CHART_SPECS.forEach(function(s){
     const ctx=$(prefix+s.suf);
     if(!ctx)return;
     const datasets=[{label:s.label,data:meds.map(function(m){return m[s.key];}),borderColor:s.color,backgroundColor:s.color,tension:.3,pointRadius:4,fill:false}];
     var objVal=objetivo&&objetivo[s.objKey];
+    if(s.key==='masa_adiposa'&&objetivo&&objetivo.z_adiposa_objetivo!=null&&tallaUlt){
+      objVal=kgAdiposaDeZ(objetivo.z_adiposa_objetivo,tallaUlt);
+    }
+    if(s.key==='masa_muscular'&&objetivo&&objetivo.imo_objetivo!=null&&moseaUlt){
+      objVal=objetivo.imo_objetivo*moseaUlt;
+    }
     if(objVal){
       datasets.push({label:'Objetivo',data:labels.map(function(){return objVal;}),borderColor:'#999',borderDash:[6,4],pointRadius:0,fill:false});
     }
@@ -439,12 +454,14 @@ function renderJugadora(tab){
       var ma=eMA(ult.masa_adiposa,deportJug),imo=eIMO(ult.imo,deportJug),s6p=eS6P(ult.s6p,deportJug);
       content+='<div class="metric-grid">'+
         '<div class="metric-card" style="border-top:3px solid '+ma.h+'"><div class="metric-label">Masa Adiposa</div><div class="metric-value">'+f2(ult.masa_adiposa)+'</div><div class="metric-label">kg</div><span class="metric-badge '+ma.c+'">'+ma.l+'</span></div>'+
+        '<div class="metric-card" style="border-top:3px solid #2E9E6B"><div class="metric-label">Masa Muscular</div><div class="metric-value">'+f2(ult.masa_muscular)+'</div><div class="metric-label">kg</div></div>'+
         '<div class="metric-card" style="border-top:3px solid '+imo.h+'"><div class="metric-label">IMO</div><div class="metric-value">'+f2(ult.imo)+'</div><div class="metric-label">MM/MO</div><span class="metric-badge '+imo.c+'">'+imo.l+'</span></div>'+
         '<div class="metric-card" style="border-top:3px solid '+s6p.h+'"><div class="metric-label">S6P</div><div class="metric-value">'+f0(ult.s6p)+'</div><div class="metric-label">mm</div><span class="metric-badge '+s6p.c+'">'+s6p.l+'</span></div>'+
       '</div>';
       if(pen){
         content+='<div class="card"><div class="card-title">📊 Comparación con medición anterior</div>';
         content+=bigDiff('Masa Adiposa',ult.masa_adiposa,pen.masa_adiposa,false,f2,' kg');
+        content+=bigDiff('Masa Muscular',ult.masa_muscular,pen.masa_muscular,true,f2,' kg');
         content+=bigDiff('IMO',ult.imo,pen.imo,true,f2,'');
         content+=bigDiff('S6P',ult.s6p,pen.s6p,false,f0,' mm');
         content+='</div>';
@@ -453,7 +470,9 @@ function renderJugadora(tab){
         var o=APP.jugObj;
         content+='<div class="card"><div class="card-title">🎯 Mis objetivos</div>';
         if(o.notas)content+='<div style="margin-bottom:12px;padding:10px;background:#f5f7fa;border-radius:8px;font-size:13px;color:#555">📝 '+o.notas+'</div>';
-        var objs=[[o.ma_objetivo,ult.masa_adiposa,'MA objetivo','kg',false],[o.imo_objetivo,ult.imo,'IMO objetivo','',true],[o.s6p_objetivo,ult.s6p,'S6P objetivo','mm',false]];
+        var maObjEff=(o.z_adiposa_objetivo!=null&&ult.talla)?kgAdiposaDeZ(o.z_adiposa_objetivo,ult.talla):o.ma_objetivo;
+        var mmObjEff=(o.imo_objetivo!=null&&ult.masa_osea)?o.imo_objetivo*ult.masa_osea:null;
+        var objs=[[maObjEff,ult.masa_adiposa,'MA objetivo','kg',false],[mmObjEff,ult.masa_muscular,'MM objetivo','kg',true],[o.imo_objetivo,ult.imo,'IMO objetivo','',true],[o.s6p_objetivo,ult.s6p,'S6P objetivo','mm',false]];
         objs.forEach(function(row){
           var obj=row[0],actual=row[1],label=row[2],u=row[3],up=row[4];
           if(!obj)return;
@@ -708,6 +727,7 @@ async function renderDetalle(jid){
     var ma=eMA(ult.masa_adiposa,j.deporte),imo=eIMO(ult.imo,j.deporte),s6p=eS6P(ult.s6p,j.deporte);
     content+='<div class="metric-grid">'+
       '<div class="metric-card" style="border-top:3px solid '+ma.h+'"><div class="metric-label">Masa Adiposa</div><div class="metric-value">'+f2(ult.masa_adiposa)+'</div><span class="metric-badge '+ma.c+'">'+ma.l+'</span></div>'+
+      '<div class="metric-card" style="border-top:3px solid #2E9E6B"><div class="metric-label">Masa Muscular</div><div class="metric-value">'+f2(ult.masa_muscular)+'</div></div>'+
       '<div class="metric-card" style="border-top:3px solid '+imo.h+'"><div class="metric-label">IMO</div><div class="metric-value">'+f2(ult.imo)+'</div><span class="metric-badge '+imo.c+'">'+imo.l+'</span></div>'+
       '<div class="metric-card" style="border-top:3px solid '+s6p.h+'"><div class="metric-label">S6P</div><div class="metric-value">'+f0(ult.s6p)+'</div><span class="metric-badge '+s6p.c+'">'+s6p.l+'</span></div></div>';
   }
@@ -936,14 +956,50 @@ async function deleteMed(medId,jid){
 async function modalObj(jid){
   var o=await sb.from('objetivos').select('*').eq('jugadora_id',jid).single();
   var od=o.data;
+  var u=ultima(jid);
+  APP.objCtx={talla:u&&u.talla?u.talla:null,maActual:u?u.masa_adiposa:null,mosea:u?u.masa_osea:null,mmActual:u?u.masa_muscular:null};
   showModal('Objetivos — '+APP.selJug.nombre,
-    '<div class="form-row"><div class="form-group"><label>MA objetivo (kg)</label><input id="oma" type="number" step="0.01" value="'+(od&&od.ma_objetivo?od.ma_objetivo:'')+'"/></div><div class="form-group"><label>IMO objetivo</label><input id="oimo" type="number" step="0.01" value="'+(od&&od.imo_objetivo?od.imo_objetivo:'')+'"/></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Z-adiposa objetivo</label><input id="oz" type="number" step="0.01" value="'+(od&&od.z_adiposa_objetivo!=null?od.z_adiposa_objetivo:'')+'" oninput="previewZAdiposa()"/></div><div class="form-group"><label>IMO objetivo</label><input id="oimo" type="number" step="0.01" value="'+(od&&od.imo_objetivo?od.imo_objetivo:'')+'" oninput="previewMM()"/></div></div>'+
+    '<div id="zPreview" style="font-size:12px;color:#888;margin:-6px 0 6px 2px"></div>'+
+    '<div id="mmPreview" style="font-size:12px;color:#888;margin:-6px 0 12px 2px"></div>'+
     '<div class="form-group"><label>S6P objetivo (mm)</label><input id="os6" type="number" step="0.1" value="'+(od&&od.s6p_objetivo?od.s6p_objetivo:'')+'"/></div>'+
     '<div class="form-group"><label>Notas / indicaciones (las ve la jugadora)</label><textarea id="onot" rows="3" style="resize:vertical">'+(od&&od.notas?od.notas:'')+'</textarea></div>',
     '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="saveObj('+jid+','+(od?1:0)+')">Guardar</button>');
+  previewZAdiposa();previewMM();
+}
+function previewZAdiposa(){
+  var el=$('zPreview');if(!el)return;
+  var ctx=APP.objCtx||{};
+  var z=parseFloat($('oz')?$('oz').value:'');
+  if(!ctx.talla){el.textContent='⚠️ No tiene talla cargada todavía, no puedo calcular el objetivo de masa adiposa en kg.';return;}
+  if(isNaN(z)){el.textContent='Talla actual: '+ctx.talla+' cm';return;}
+  var kgObj=kgAdiposaDeZ(z,ctx.talla);
+  var txt='≈ '+kgObj.toFixed(2)+' kg de masa adiposa objetivo';
+  if(ctx.maActual!=null){
+    var falta=ctx.maActual-kgObj;
+    txt+=falta>0.05?(' · faltan bajar '+falta.toFixed(1)+' kg'):(falta<-0.05?(' · podría subir '+Math.abs(falta).toFixed(1)+' kg'):' · ¡ya está en el objetivo!');
+  }
+  el.textContent=txt;
+}
+function previewMM(){
+  var el=$('mmPreview');if(!el)return;
+  var ctx=APP.objCtx||{};
+  var imo=parseFloat($('oimo')?$('oimo').value:'');
+  if(!ctx.mosea){el.textContent='⚠️ No tiene masa ósea cargada todavía, no puedo calcular el objetivo de masa muscular en kg.';return;}
+  if(isNaN(imo)){el.textContent='Masa ósea actual: '+ctx.mosea+' kg';return;}
+  var kgObj=imo*ctx.mosea;
+  var txt='≈ '+kgObj.toFixed(2)+' kg de masa muscular objetivo';
+  if(ctx.mmActual!=null){
+    var falta=kgObj-ctx.mmActual;
+    txt+=falta>0.05?(' · faltan subir '+falta.toFixed(1)+' kg'):(falta<-0.05?(' · '+Math.abs(falta).toFixed(1)+' kg por encima del objetivo'):' · ¡ya está en el objetivo!');
+  }
+  el.textContent=txt;
 }
 async function saveObj(jid,exists){
-  var d={jugadora_id:jid,ma_objetivo:parseFloat($('oma').value)||null,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString()};
+  var z=parseFloat($('oz').value);
+  var ctx=APP.objCtx||{};
+  var maObjetivo=(!isNaN(z)&&ctx.talla)?Math.round(kgAdiposaDeZ(z,ctx.talla)*100)/100:null;
+  var d={jugadora_id:jid,z_adiposa_objetivo:isNaN(z)?null:z,ma_objetivo:maObjetivo,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString()};
   if(exists)await sb.from('objetivos').update(d).eq('jugadora_id',jid);
   else await sb.from('objetivos').insert(d);
   closeModal();alert('¡Objetivos guardados!');
