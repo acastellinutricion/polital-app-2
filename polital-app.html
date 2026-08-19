@@ -686,14 +686,19 @@ function buildTeamCharts(jugs){
   var porJug=jugs.map(function(j){return medsJ(j.id);}).filter(function(m){return m.length;});
   if(!porJug.length)return;
   var maxN=Math.max.apply(null,porJug.map(function(m){return m[m.length-1].n_medicion;}));
-  var labels=[],avgs={masa_adiposa:[],imo:[],s6p:[]};
+  var keys=['masa_adiposa','masa_muscular','imo','s6p'];
+  var minCount=Math.max(3,Math.ceil(porJug.length*0.25));
+  var labels=[],avgs={masa_adiposa:[],masa_muscular:[],imo:[],s6p:[]};
   for(var n=1;n<=maxN;n++){
-    labels.push('N'+n);
-    ['masa_adiposa','imo','s6p'].forEach(function(key){
-      var vals=[];
-      porJug.forEach(function(m){var row=m.find(function(x){return x.n_medicion===n;});if(row&&row[key]!=null)vals.push(row[key]);});
-      avgs[key].push(vals.length?avg(vals):null);
+    var countThisN=0,rowVals={masa_adiposa:[],masa_muscular:[],imo:[],s6p:[]};
+    porJug.forEach(function(m){
+      var row=m.find(function(x){return x.n_medicion===n;});
+      if(row)countThisN++;
+      keys.forEach(function(key){if(row&&row[key]!=null)rowVals[key].push(row[key]);});
     });
+    if(countThisN<minCount)break; // corta el promedio ahí donde queda muy poca gente (evita que 1 sola persona "sea" el promedio del plantel)
+    labels.push('N'+n);
+    keys.forEach(function(key){avgs[key].push(rowVals[key].length?avg(rowVals[key]):null);});
   }
   CHART_SPECS.forEach(function(s){
     var ctx=$('team'+s.suf);if(!ctx)return;
