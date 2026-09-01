@@ -231,9 +231,27 @@ function destroyCharts(){APP.charts.forEach(c=>{try{c.destroy()}catch(e){}});APP
 // ── CHART BUILDER ─────────────────────────────────────────
 // Un grafico separado por cada masa/indicador (mas claro que uno solo con todo mezclado)
 // ── Z-ADIPOSA → KG (misma fórmula que la hoja ECUACIONES del Excel, C11:C17) ──
-function kgAdiposaDeZ(z,talla){
+// OJO: el Excel corrige este resultado por (Peso Bruto / Peso Estructurado) — una relación
+// que no tenemos guardada directo (necesitaría masa de piel + masa residual), pero se puede
+// reconstruir: esa misma relación es la que separa el "kg crudo" (fórmula pura de Z) del
+// "kg real" que ya tenemos guardado en masa_adiposa (que sale corregido de "Proc datos brutos").
+// Entonces: ratio = masa_adiposa_actual / kg_crudo(Z_actual), y target_corregido = kg_crudo(Z_objetivo) * ratio.
+function rawKgAdiposaDeZ(z,talla){
   if(z==null||isNaN(z)||!talla)return null;
   return (z*5.85+25.6)*Math.pow(talla/170.18,3);
+}
+function zAdiposaDeS6P(s6p,talla){
+  if(s6p==null||!talla)return null;
+  return (s6p*(170.18/talla)-116.41)/34.79;
+}
+function kgAdiposaObjetivo(zObjetivo,talla,s6pActual,maActual){
+  var raw=rawKgAdiposaDeZ(zObjetivo,talla);
+  if(raw==null)return null;
+  if(s6pActual!=null&&maActual!=null){
+    var rawActual=rawKgAdiposaDeZ(zAdiposaDeS6P(s6pActual,talla),talla);
+    if(rawActual)return raw*(maActual/rawActual);
+  }
+  return raw; // sin S6P/MA actual no podemos corregir; devuelve el crudo (menos preciso)
 }
 var CHART_SPECS=[
   {key:'masa_adiposa',objKey:'ma_objetivo',suf:'MA',label:'Masa Adiposa (kg)',color:'#C55A11'},
@@ -299,7 +317,7 @@ function buildCharts(prefix,meds,objetivo){
     const datasets=[{label:s.label,data:meds.map(function(m){return m[s.key];}),borderColor:s.color,backgroundColor:s.color,tension:.3,pointRadius:4,fill:false}];
     var objVal=objetivo&&objetivo[s.objKey];
     if(s.key==='masa_adiposa'&&objetivo&&objetivo.z_adiposa_objetivo!=null&&tallaUlt){
-      objVal=kgAdiposaDeZ(objetivo.z_adiposa_objetivo,tallaUlt);
+      objVal=kgAdiposaObjetivo(objetivo.z_adiposa_objetivo,tallaUlt,ultMed.s6p,ultMed.masa_adiposa);
     }
     if(s.key==='masa_muscular'&&objetivo&&objetivo.imo_objetivo!=null&&moseaUlt){
       objVal=objetivo.imo_objetivo*moseaUlt;
@@ -470,7 +488,7 @@ function renderJugadora(tab){
         var o=APP.jugObj;
         content+='<div class="card"><div class="card-title">🎯 Mis objetivos</div>';
         if(o.notas)content+='<div style="margin-bottom:12px;padding:10px;background:#f5f7fa;border-radius:8px;font-size:13px;color:#555">📝 '+o.notas+'</div>';
-        var maObjEff=(o.z_adiposa_objetivo!=null&&ult.talla)?kgAdiposaDeZ(o.z_adiposa_objetivo,ult.talla):o.ma_objetivo;
+        var maObjEff=(o.z_adiposa_objetivo!=null&&ult.talla)?kgAdiposaObjetivo(o.z_adiposa_objetivo,ult.talla,ult.s6p,ult.masa_adiposa):o.ma_objetivo;
         var mmObjEff=(o.imo_objetivo!=null&&ult.masa_osea)?o.imo_objetivo*ult.masa_osea:null;
         var objs=[[maObjEff,ult.masa_adiposa,'MA objetivo','kg',false],[mmObjEff,ult.masa_muscular,'MM objetivo','kg',true],[o.imo_objetivo,ult.imo,'IMO objetivo','',true],[o.s6p_objetivo,ult.s6p,'S6P objetivo','mm',false]];
         objs.forEach(function(row){
@@ -962,7 +980,7 @@ async function modalObj(jid){
   var o=await sb.from('objetivos').select('*').eq('jugadora_id',jid).single();
   var od=o.data;
   var u=ultima(jid);
-  APP.objCtx={talla:u&&u.talla?u.talla:null,maActual:u?u.masa_adiposa:null,mosea:u?u.masa_osea:null,mmActual:u?u.masa_muscular:null};
+  APP.objCtx={talla:u&&u.talla?u.talla:null,maActual:u?u.masa_adiposa:null,s6pActual:u?u.s6p:null,mosea:u?u.masa_osea:null,mmActual:u?u.masa_muscular:null};
   showModal('Objetivos — '+APP.selJug.nombre,
     '<div class="form-row"><div class="form-group"><label>Z-adiposa objetivo</label><input id="oz" type="number" step="0.01" value="'+(od&&od.z_adiposa_objetivo!=null?od.z_adiposa_objetivo:'')+'" oninput="previewZAdiposa()"/></div><div class="form-group"><label>IMO objetivo</label><input id="oimo" type="number" step="0.01" value="'+(od&&od.imo_objetivo?od.imo_objetivo:'')+'" oninput="previewMM()"/></div></div>'+
     '<div id="zPreview" style="font-size:12px;color:#888;margin:-6px 0 6px 2px"></div>'+
@@ -978,7 +996,7 @@ function previewZAdiposa(){
   var z=parseFloat($('oz')?$('oz').value:'');
   if(!ctx.talla){el.textContent='⚠️ No tiene talla cargada todavía, no puedo calcular el objetivo de masa adiposa en kg.';return;}
   if(isNaN(z)){el.textContent='Talla actual: '+ctx.talla+' cm';return;}
-  var kgObj=kgAdiposaDeZ(z,ctx.talla);
+  var kgObj=kgAdiposaObjetivo(z,ctx.talla,ctx.s6pActual,ctx.maActual);
   var txt='≈ '+kgObj.toFixed(2)+' kg de masa adiposa objetivo';
   if(ctx.maActual!=null){
     var falta=ctx.maActual-kgObj;
@@ -1003,7 +1021,7 @@ function previewMM(){
 async function saveObj(jid,exists){
   var z=parseFloat($('oz').value);
   var ctx=APP.objCtx||{};
-  var maObjetivo=(!isNaN(z)&&ctx.talla)?Math.round(kgAdiposaDeZ(z,ctx.talla)*100)/100:null;
+  var maObjetivo=(!isNaN(z)&&ctx.talla)?Math.round(kgAdiposaObjetivo(z,ctx.talla,ctx.s6pActual,ctx.maActual)*100)/100:null;
   var d={jugadora_id:jid,z_adiposa_objetivo:isNaN(z)?null:z,ma_objetivo:maObjetivo,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString()};
   if(exists)await sb.from('objetivos').update(d).eq('jugadora_id',jid);
   else await sb.from('objetivos').insert(d);
