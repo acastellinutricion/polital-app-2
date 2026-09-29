@@ -224,7 +224,11 @@ function diasDesde(fechaStr){
   return Math.round((new Date()-d)/86400000);
 }
 
-let APP={session:null,planteles:[],jugs:[],meds:[],baremos:{},selPlantel:null,selJug:null,selJugObj:null,jugMeds:[],jugObj:null,search:'',filter:'todos',orderAntig:false,charts:[]};
+let APP={session:null,planteles:[],jugs:[],meds:[],objetivos:[],baremos:{},selPlantel:null,selJug:null,selJugObj:null,jugMeds:[],jugObj:null,search:'',filter:'todos',orderAntig:false,charts:[]};
+function objetivoDe(jid){return APP.objetivos.find(function(o){return o.jugadora_id===jid;})||null;}
+function fechaISOaDMY(iso){if(!iso)return null;var d=new Date(iso);if(isNaN(d.getTime()))return null;return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();}
+function diasDesdeISO(iso){if(!iso)return null;var d=new Date(iso);if(isNaN(d.getTime()))return null;return Math.round((new Date()-d)/86400000);}
+function fechaDMYaDate(fechaStr){if(!fechaStr||fechaStr==='—'||fechaStr==='S/D')return null;var m=fechaStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(!m)return null;return new Date(parseInt(m[3]),parseInt(m[2])-1,parseInt(m[1]));}
 function render(html){destroyCharts();$('app').innerHTML=html;}
 function destroyCharts(){APP.charts.forEach(c=>{try{c.destroy()}catch(e){}});APP.charts=[];}
 
@@ -540,11 +544,13 @@ async function loadAdmin(){
   if(coach)juQ=juQ.eq('plantel_id',APP.session.plantelId);
   var ju=await juQ;
   var me=await sb.from('mediciones').select('*').order('n_medicion');
+  var ob=await sb.from('objetivos').select('*');
   await loadBaremos();
-  APP.planteles=pl.data||[];APP.jugs=ju.data||[];APP.meds=me.data||[];
+  APP.planteles=pl.data||[];APP.jugs=ju.data||[];APP.meds=me.data||[];APP.objetivos=ob.data||[];
   if(coach){
     var ids=APP.jugs.map(function(j){return j.id;});
     APP.meds=APP.meds.filter(function(m){return ids.indexOf(m.jugadora_id)>=0;});
+    APP.objetivos=APP.objetivos.filter(function(o){return ids.indexOf(o.jugadora_id)>=0;});
     APP.selPlantel=APP.planteles[0]||null;
   } else if(APP.planteles.length&&!APP.selPlantel){
     APP.selPlantel=APP.planteles[0];
@@ -562,6 +568,7 @@ function renderAdmin(tab){
   var tabs='<div class="tabs">'+
     '<button class="tab '+(tab==='plantel'?'active':'')+'" onclick="renderAdmin(&quot;plantel&quot;)">'+(esParticulares?'Particulares':'Plantel')+'</button>'+
     '<button class="tab '+(tab==='alertas'?'active':'')+'" onclick="renderAdmin(&quot;alertas&quot;)">Alertas</button>'+
+    (coach?'':'<button class="tab '+(tab==='pendientes'?'active':'')+'" onclick="renderAdmin(&quot;pendientes&quot;)">Pendientes</button>')+
     (esParticulares?'':'<button class="tab '+(tab==='resumen'?'active':'')+'" onclick="renderAdmin(&quot;resumen&quot;)">Resumen</button>'+
     '<button class="tab '+(tab==='comparar'?'active':'')+'" onclick="renderAdmin(&quot;comparar&quot;)">Comparar</button>')+'</div>';
 
@@ -602,6 +609,46 @@ function renderAdmin(tab){
       if(u.imo<b.imo_revisar)dets.push('IMO bajo ('+f2(u.imo)+')');else if(u.imo<b.imo_optimo)dets.push('IMO revisar ('+f2(u.imo)+')');
       content+='<div class="alert-item" onclick="renderDetalle('+j.id+')"><div><div style="font-size:14px;font-weight:500">'+j.nombre+'</div><div style="font-size:12px;color:#888;margin-top:3px">'+(dets.length?dets.join(' · '):'Sin alertas')+'</div></div><span class="priority-badge '+pr.c+'">'+pr.l+'</span></div>';
     });
+  } else if(tab==='pendientes'){
+    var filasP=jugs.map(function(j){
+      var u=ultima(j.id);
+      var ob=objetivoDe(j.id);
+      var medFecha=u?u.fecha:null;
+      var medDate=u?fechaDMYaDate(u.fecha):null;
+      var devISO=ob?ob.devolucion_fecha:null;
+      var devDate=devISO?new Date(devISO):null;
+      var planFalta=!j.plan_pdf_url;
+      var devPendiente=!!(medDate&&(!devDate||devDate<medDate));
+      var devDias=diasDesdeISO(devISO);
+      var medDias=diasDesde(medFecha);
+      return {j:j,u:u,medFecha:medFecha,medDias:medDias,devFecha:fechaISOaDMY(devISO),devDias:devDias,planFalta:planFalta,devPendiente:devPendiente};
+    });
+    var sinPlanCount=filasP.filter(function(x){return x.planFalta;}).length;
+    var devPendCount=filasP.filter(function(x){return x.devPendiente;}).length;
+    filasP.sort(function(a,b){
+      if(a.devPendiente!==b.devPendiente)return a.devPendiente?-1:1;
+      var da=a.devDias==null?99999:a.devDias, db=b.devDias==null?99999:b.devDias;
+      return db-da;
+    });
+    content='<div style="font-size:13px;color:#888;margin-bottom:12px">⚠️ '+sinPlanCount+' sin plan cargado · 🔔 '+devPendCount+' con medición nueva sin devolución</div>';
+    if(!filasP.length){
+      content+='<div style="text-align:center;color:#aaa;padding:2rem">No hay jugadoras en este plantel</div>';
+    } else {
+      content+='<div style="display:flex;flex-direction:column;gap:8px">';
+      filasP.forEach(function(x){
+        var bg=x.devPendiente?'#FFEAEA':(x.planFalta?'#FFF6E0':'#fff');
+        var bd=x.devPendiente?'#F5B7B7':(x.planFalta?'#F0DCA0':'#eee');
+        content+='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid '+bd+';background:'+bg+';border-radius:10px;cursor:pointer" onclick="renderDetalle('+x.j.id+')">'+
+          '<div><div style="font-size:14px;font-weight:600">'+x.j.nombre+'</div>'+
+          '<div style="font-size:11px;color:#888;margin-top:3px">Plan: '+(x.planFalta?'<span style="color:#B36B00;font-weight:600">⚠️ Falta</span>':'✅ Cargado')+'</div></div>'+
+          '<div style="text-align:right;font-size:11px;color:#888">'+
+          '<div>Última medición: '+(x.medFecha?x.medFecha+' ('+x.medDias+'d)':'Nunca')+'</div>'+
+          '<div style="margin-top:2px">Última devolución: '+(x.devFecha?x.devFecha+' ('+x.devDias+'d)':'Nunca')+'</div>'+
+          (x.devPendiente?'<div style="margin-top:4px"><button class="btn btn-primary btn-sm" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();marcarDevolucion('+x.j.id+')">🔔 Marcar devolución dada</button></div>':'')+
+          '</div></div>';
+      });
+      content+='</div>';
+    }
   } else if(tab==='resumen'){
     var n=ultimas.length;
     var avgMA=n?avg(ultimas.map(function(m){return m.masa_adiposa;})).toFixed(1):'—';
@@ -741,7 +788,7 @@ async function renderDetalle(jid){
   if(j.posicion)subInfo.push(j.posicion);
   var coach=isCoach();
   var accionesJug=coach?'<button class="btn btn-secondary btn-sm" onclick="exportarJugadora('+j.id+')">📄 PDF</button>'
-    :'<button class="btn btn-secondary btn-sm" onclick="modalAddMed('+j.id+')">+ Medición</button><button class="btn btn-secondary btn-sm" onclick="modalEditJug('+j.id+')">✏️ Editar</button><button class="btn btn-secondary btn-sm" onclick="modalObj('+j.id+')">Objetivos</button><button class="btn btn-secondary btn-sm" onclick="modalPlan('+j.id+')">📎 Plan</button><button class="btn btn-secondary btn-sm" onclick="modalNota('+j.id+')">📝 Nota</button><button class="btn btn-secondary btn-sm" onclick="exportarJugadora('+j.id+')">📄 PDF</button>';
+    :'<button class="btn btn-secondary btn-sm" onclick="modalAddMed('+j.id+')">+ Medición</button><button class="btn btn-secondary btn-sm" onclick="modalEditJug('+j.id+')">✏️ Editar</button><button class="btn btn-secondary btn-sm" onclick="modalObj('+j.id+')">Objetivos</button><button class="btn btn-secondary btn-sm" onclick="modalPlan('+j.id+')">📎 Plan</button><button class="btn btn-secondary btn-sm" onclick="modalNota('+j.id+')">📝 Nota</button><button class="btn btn-primary btn-sm" onclick="marcarDevolucion('+j.id+')">🔔 Devolución dada</button><button class="btn btn-secondary btn-sm" onclick="exportarJugadora('+j.id+')">📄 PDF</button>';
   var content='<button class="back-btn" onclick="renderAdmin()">← Volver al plantel</button>'+
     '<div style="display:flex;align-items:center;gap:14px;margin-bottom:1rem"><div class="player-avatar" style="width:48px;height:48px;font-size:18px">'+ini(j.nombre)+'</div>'+
     '<div style="flex:1"><div style="font-size:20px;font-weight:600">'+j.nombre+'</div><div style="font-size:13px;color:#888">'+subInfo.join(' · ')+'</div></div>'+
@@ -757,6 +804,7 @@ async function renderDetalle(jid){
   content+=refCardHtml(j.deporte,j.posicion);
   if(j.notas)content+='<div class="card" style="background:#FFF9E6"><div class="card-title">📝 Nota privada</div><div style="font-size:13px;color:#555">'+j.notas+'</div></div>';
   if(j.plan_pdf_url)content+='<div class="card"><div class="card-title">📎 Plan nutricional</div><a href="'+j.plan_pdf_url+'" target="_blank" style="font-size:13px;color:#2E75B6;font-weight:600">'+(j.plan_pdf_nombre||'Ver PDF')+'</a>'+(j.plan_pdf_fecha?'<div style="font-size:11px;color:#aaa;margin-top:4px">Subido '+j.plan_pdf_fecha+'</div>':'')+'</div>';
+  if(!coach){var obDet=objetivoDe(j.id);var devF=obDet?fechaISOaDMY(obDet.devolucion_fecha):null;content+='<div class="card"><div class="card-title">🔔 Devolución</div><div style="font-size:13px;color:#555">'+(devF?'Última: '+devF+' ('+diasDesdeISO(obDet.devolucion_fecha)+' días)':'Todavía no se marcó ninguna')+'</div></div>';}
   if(meds.length>=2)content+=chartBoxesHtml('det','📈 Evolución');
   var rows=meds.slice().reverse().map(function(m,i,arr){var prev=arr[i+1];
     return '<tr><td>'+(m.fecha||'—')+'</td><td style="font-weight:600">N'+m.n_medicion+'</td><td>'+(m.peso||'—')+'</td>'+
@@ -1022,10 +1070,26 @@ async function saveObj(jid,exists){
   var z=parseFloat($('oz').value);
   var ctx=APP.objCtx||{};
   var maObjetivo=(!isNaN(z)&&ctx.talla)?Math.round(kgAdiposaObjetivo(z,ctx.talla,ctx.s6pActual,ctx.maActual)*100)/100:null;
-  var d={jugadora_id:jid,z_adiposa_objetivo:isNaN(z)?null:z,ma_objetivo:maObjetivo,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString()};
+  var d={jugadora_id:jid,z_adiposa_objetivo:isNaN(z)?null:z,ma_objetivo:maObjetivo,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString(),devolucion_fecha:new Date().toISOString()};
   if(exists)await sb.from('objetivos').update(d).eq('jugadora_id',jid);
   else await sb.from('objetivos').insert(d);
+  var idx=APP.objetivos.findIndex(function(o){return o.jugadora_id===jid;});
+  if(idx>=0)APP.objetivos[idx]=Object.assign({},APP.objetivos[idx],d);else APP.objetivos.push(d);
   closeModal();alert('¡Objetivos guardados!');
+}
+async function marcarDevolucion(jid){
+  if(!confirm('¿Marcar devolución dada hoy?'))return;
+  var iso=new Date().toISOString();
+  var existing=objetivoDe(jid);
+  if(existing){
+    await sb.from('objetivos').update({devolucion_fecha:iso}).eq('jugadora_id',jid);
+  } else {
+    await sb.from('objetivos').insert({jugadora_id:jid,devolucion_fecha:iso});
+  }
+  var idx=APP.objetivos.findIndex(function(o){return o.jugadora_id===jid;});
+  if(idx>=0)APP.objetivos[idx]=Object.assign({},APP.objetivos[idx],{devolucion_fecha:iso});
+  else APP.objetivos.push({jugadora_id:jid,devolucion_fecha:iso});
+  if(APP.selJug&&APP.selJug.id===jid)renderDetalle(jid);else renderAdmin('pendientes');
 }
 
 function modalNota(jid){
