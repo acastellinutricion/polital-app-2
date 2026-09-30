@@ -1070,7 +1070,7 @@ async function saveObj(jid,exists){
   var z=parseFloat($('oz').value);
   var ctx=APP.objCtx||{};
   var maObjetivo=(!isNaN(z)&&ctx.talla)?Math.round(kgAdiposaObjetivo(z,ctx.talla,ctx.s6pActual,ctx.maActual)*100)/100:null;
-  var d={jugadora_id:jid,z_adiposa_objetivo:isNaN(z)?null:z,ma_objetivo:maObjetivo,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString(),devolucion_fecha:new Date().toISOString()};
+  var d={jugadora_id:jid,z_adiposa_objetivo:isNaN(z)?null:z,ma_objetivo:maObjetivo,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString()};
   if(exists)await sb.from('objetivos').update(d).eq('jugadora_id',jid);
   else await sb.from('objetivos').insert(d);
   var idx=APP.objetivos.findIndex(function(o){return o.jugadora_id===jid;});
