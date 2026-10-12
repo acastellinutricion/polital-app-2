@@ -570,7 +570,8 @@ function renderAdmin(tab){
     '<button class="tab '+(tab==='alertas'?'active':'')+'" onclick="renderAdmin(&quot;alertas&quot;)">Alertas</button>'+
     (coach?'':'<button class="tab '+(tab==='pendientes'?'active':'')+'" onclick="renderAdmin(&quot;pendientes&quot;)">Pendientes</button>')+
     (esParticulares?'':'<button class="tab '+(tab==='resumen'?'active':'')+'" onclick="renderAdmin(&quot;resumen&quot;)">Resumen</button>'+
-    '<button class="tab '+(tab==='comparar'?'active':'')+'" onclick="renderAdmin(&quot;comparar&quot;)">Comparar</button>')+'</div>';
+    '<button class="tab '+(tab==='comparar'?'active':'')+'" onclick="renderAdmin(&quot;comparar&quot;)">Comparar</button>')+
+    '<button class="tab '+(tab==='glosario'?'active':'')+'" onclick="renderAdmin(&quot;glosario&quot;)">📖 Glosario</button></div>';
 
   var jugs=APP.jugs.filter(function(j){return j.plantel_id===APP.selPlantel.id;});
   var ultimas=jugs.map(function(j){return ultima(j.id);}).filter(Boolean);
@@ -671,6 +672,8 @@ function renderAdmin(tab){
       content+='<div class="section-title">Evolución promedio del plantel</div>';
       content+=chartBoxesHtml('team','📈 Promedio plantel');
     }
+  } else if(tab==='glosario'){
+    content=glosarioHtml(coach);
   } else if(tab==='comparar'){
     content='<div class="section-title">Comparar jugadoras del plantel — S6P</div>';
     content+='<div style="font-size:12px;color:#888;margin-bottom:8px">Ordenadas por S6P (de mayor a menor)</div>';
@@ -681,6 +684,61 @@ function renderAdmin(tab){
   }
   render(nav+'<div class="page"><div class="plantel-btns">'+plantelBtns+'</div>'+tabs+content+'</div>');
   if(tab==='resumen')setTimeout(function(){buildTeamCharts(jugs);},50);
+}
+
+// ── GLOSARIO (para entrenadores y admin) ───────────────────
+function glosarioHtml(coach){
+  function sec(titulo,body){return '<div class="card" style="margin-bottom:12px"><div class="card-title">'+titulo+'</div><div style="font-size:13px;color:#444;line-height:1.55">'+body+'</div></div>';}
+  function item(t,d){return '<div style="margin-bottom:9px"><b>'+t+'</b><br><span style="color:#555">'+d+'</span></div>';}
+  function pill(txt,bg,fg){return '<span style="display:inline-block;background:'+bg+';color:'+fg+';font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-right:4px">'+txt+'</span>';}
+  var verde=pill('OK / ÓPTIMO','#C6EFCE','#1F7A4A'),amar=pill('REVISAR','#FFEB9C','#9C6500'),rojo=pill('REDUCIR / MEJORAR','#FFC7CE','#9C0006');
+  var out='<div style="font-size:13px;color:#888;margin-bottom:12px">Guía rápida para interpretar los números, colores y pantallas de Polital.</div>';
+
+  out+=sec('📏 Qué se mide',
+    item('Masa Adiposa (MA, kg)','Kilos de grasa corporal. Es lo que se busca bajar o mantener según el objetivo de cada jugador/a.')+
+    item('Masa Muscular (MM, kg)','Kilos de músculo. Se busca mantener o subir.')+
+    item('Masa Ósea (MO, kg)','Kilos de hueso. Casi no cambia: depende de la estructura de cada persona. Se usa como "base" para calcular el IMO.')+
+    item('IMO (índice músculo/óseo)','Masa muscular ÷ masa ósea. Indica cuánto músculo tiene la persona en relación a su propio esqueleto. <b>Más alto es mejor.</b> Permite comparar jugadores de distinto tamaño.')+
+    item('S6P (suma de 6 pliegues, mm)','Suma del espesor de 6 pliegues cutáneos medidos con plicómetro. Es un indicador directo de adiposidad: <b>más bajo = menos grasa subcutánea.</b>')+
+    item('Z-adiposa','Distancia de la adiposidad de la persona respecto de una referencia, expresada en desvíos estándar (ajustada por talla). Cero = referencia; negativo = menos adiposo que la referencia; positivo = más. Es lo que usamos para fijar el objetivo de grasa.')+
+    item('N° de medición (N1, N2, N3…)','Orden de las antropometrías de cada jugador/a. N1 es la primera, N2 la siguiente, y así.'));
+
+  var deps=Object.keys(APP.baremos||{});if(!deps.length)deps=['General'];
+  var filas=deps.map(function(d){var b=(APP.baremos&&APP.baremos[d])||BAREMO_DEFAULT;
+    return '<tr><td style="font-weight:600">'+d+'</td><td>≤ '+b.ma_optimo+' / ≤ '+b.ma_revisar+'</td><td>≥ '+b.imo_optimo+' / ≥ '+b.imo_revisar+'</td><td>≤ '+b.s6p_optimo+' / ≤ '+b.s6p_revisar+'</td></tr>';}).join('');
+  out+=sec('🚦 Semáforo (colores)',
+    '<div style="margin-bottom:8px">Cada medida se colorea según el baremo de su deporte: '+verde+'está en rango, '+amar+'está en zona intermedia, '+rojo+'está fuera de rango.</div>'+
+    '<div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Deporte</th><th>Masa adiposa (kg)<br><span style="font-weight:400">óptimo / revisar</span></th><th>IMO<br><span style="font-weight:400">óptimo / revisar</span></th><th>S6P (mm)<br><span style="font-weight:400">óptimo / revisar</span></th></tr></thead><tbody>'+filas+'</tbody></table></div>'+
+    '<div style="font-size:12px;color:#888;margin-top:6px">Lectura: en MA y S6P, por encima del 2° número ya es rojo. En IMO, por debajo del 2° número ya es rojo. Los valores los define la nutricionista y pueden ajustarse.</div>');
+
+  out+=sec('🔔 Prioridad en "Alertas"',
+    '<div style="margin-bottom:6px">Cada jugador/a suma puntos por cada medida (MA, IMO y S6P): <b>1 punto</b> si está en amarillo y <b>2 puntos</b> si está en rojo (máximo 6).</div>'+
+    item('0 puntos — OK','Sin alertas.')+item('1 punto — BAJA','Una medida en zona de revisión.')+item('2 puntos — MEDIA','Requiere atención.')+item('3–4 puntos — ALTA','Varias medidas fuera de rango.')+item('5–6 puntos — URGENTE','Casi todo fuera de rango: prioridad máxima.'));
+
+  out+=sec('🧩 Cuadro de clasificación (Resumen)',
+    '<div style="margin-bottom:6px">Cruza grasa y músculo de la última medición:</div>'+
+    item('🟩 Óptimo','Grasa dentro de rango y músculo (IMO) adecuado.')+
+    item('🟨 Reducir grasa','Músculo bien, pero grasa por encima del rango.')+
+    item('🟧 Ganar músculo','Grasa bien, pero músculo (IMO) por debajo del óptimo.')+
+    item('🟥 Prioridad alta','Grasa alta y músculo bajo: necesita trabajo en ambos frentes.'));
+
+  out+=sec('🎯 Objetivos y valores de referencia',
+    item('Línea punteada en los gráficos','Es el objetivo personalizado que fijó la nutricionista para esa persona. Si el valor está por debajo (grasa) o por encima (músculo) de la línea, está cumpliendo.')+
+    item('"Faltan bajar / subir X kg"','Diferencia entre la última medición y el objetivo.')+
+    item('Objetivo de masa adiposa','Se calcula a partir del Z-adiposa objetivo y la talla, con la misma ecuación de la planilla Excel de antropometría.')+
+    item('Objetivo de masa muscular','Se calcula a partir del IMO objetivo × masa ósea.')+
+    item('Valores de referencia por puesto','Rangos orientativos promedio de la categoría para cada posición (por ejemplo arquera, defensora, volante, delantera en hockey). Son una guía general, no un objetivo individual.'));
+
+  out+=sec('🖥️ Cómo leer cada pestaña',
+    item('Plantel / Particulares','Lista de jugadores/as con su última medición y semáforo. Podés buscar por nombre y filtrar. Tocá un nombre para ver su ficha completa y evolución.')+
+    item('Alertas','Quiénes necesitan más atención, ordenados por prioridad.')+
+    (coach?'':item('Pendientes','Quién no tiene plan cargado y a quién le falta la devolución después de una medición nueva.'))+
+    item('Resumen','Promedios del plantel, estado general, cuadro de clasificación y evolución promedio.')+
+    item('Comparar','Ranking del plantel por S6P (de mayor a menor).')+
+    item('"Hace cuánto no se mide"','Ordena por antigüedad de la última medición. En rojo: pasaron más de 150 días sin medirse.')+
+    item('Evolución promedio del plantel','Promedio de cada medición (N1, N2…). Solo se muestran las mediciones en las que participó una parte representativa del plantel, para que un caso aislado no distorsione el promedio.'));
+
+  return out;
 }
 
 // ── CUADRO DE PUNNETT (Grasa x Músculo) ────────────────────
@@ -1070,7 +1128,7 @@ async function saveObj(jid,exists){
   var z=parseFloat($('oz').value);
   var ctx=APP.objCtx||{};
   var maObjetivo=(!isNaN(z)&&ctx.talla)?Math.round(kgAdiposaObjetivo(z,ctx.talla,ctx.s6pActual,ctx.maActual)*100)/100:null;
-  var d={jugadora_id:jid,z_adiposa_objetivo:isNaN(z)?null:z,ma_objetivo:maObjetivo,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString()};
+  var d={jugadora_id:jid,z_adiposa_objetivo:isNaN(z)?null:z,ma_objetivo:maObjetivo,imo_objetivo:parseFloat($('oimo').value)||null,s6p_objetivo:parseFloat($('os6').value)||null,notas:$('onot').value||null,updated_at:new Date().toISOString(),devolucion_fecha:new Date().toISOString()};
   if(exists)await sb.from('objetivos').update(d).eq('jugadora_id',jid);
   else await sb.from('objetivos').insert(d);
   var idx=APP.objetivos.findIndex(function(o){return o.jugadora_id===jid;});
@@ -1310,3 +1368,4 @@ bootstrap();
 </script>
 </body>
 </html>
+
