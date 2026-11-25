@@ -736,7 +736,7 @@ function glosarioHtml(coach){
     item('Resumen','Promedios del plantel, estado general, cuadro de clasificación y evolución promedio.')+
     item('Comparar','Ranking del plantel por S6P (de mayor a menor).')+
     item('"Hace cuánto no se mide"','Ordena por antigüedad de la última medición. En rojo: pasaron más de 150 días sin medirse.')+
-    item('Evolución promedio del plantel','Promedio de cada medición (N1, N2…). Solo se muestran las mediciones en las que participó una parte representativa del plantel, para que un caso aislado no distorsione el promedio.'));
+    item('Evolución promedio del plantel','Promedio del plantel en cada ronda de medición (por mes). Debajo de cada mes figura cuántas jugadoras se midieron. Los meses con muy pocas mediciones sueltas no se muestran, para que un caso aislado no distorsione el promedio.'));
 
   return out;
 }
@@ -805,28 +805,52 @@ function renderAdminPlantelList(){
   var el=$('plantelList');if(el)el.innerHTML=renderPlantelListHtml(jugs);
 }
 
+// Promedio del plantel por ronda de medición (mes/año), no por N:
+// cada punto = cómo estaba el plantel ese mes, con las jugadoras que se midieron ese mes.
+var MESES_CORTOS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function mesKeyDeFecha(f){
+  var m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(f||'').trim());
+  if(!m)return null;
+  var mes=parseInt(m[2],10),anio=parseInt(m[3],10),dia=parseInt(m[1],10);
+  if(mes<1||mes>12)return null;
+  return {key:anio*100+mes,label:MESES_CORTOS[mes-1]+' '+String(anio).slice(2),orden:anio*10000+mes*100+dia};
+}
 function buildTeamCharts(jugs){
-  var porJug=jugs.map(function(j){return medsJ(j.id);}).filter(function(m){return m.length;});
-  if(!porJug.length)return;
-  var maxN=Math.max.apply(null,porJug.map(function(m){return m[m.length-1].n_medicion;}));
   var keys=['masa_adiposa','masa_muscular','imo','s6p'];
-  var minCount=Math.max(3,Math.ceil(porJug.length*0.25));
-  var labels=[],avgs={masa_adiposa:[],masa_muscular:[],imo:[],s6p:[]};
-  for(var n=1;n<=maxN;n++){
-    var countThisN=0,rowVals={masa_adiposa:[],masa_muscular:[],imo:[],s6p:[]};
-    porJug.forEach(function(m){
-      var row=m.find(function(x){return x.n_medicion===n;});
-      if(row)countThisN++;
-      keys.forEach(function(key){if(row&&row[key]!=null)rowVals[key].push(row[key]);});
+  var rondas={}; // key mes -> {label, porJug:{jid:row}}
+  var conDatos=0;
+  jugs.forEach(function(j){
+    var ms=medsJ(j.id);if(ms.length)conDatos++;
+    ms.forEach(function(row){
+      var mk=mesKeyDeFecha(row.fecha);if(!mk)return;
+      var r=rondas[mk.key]||(rondas[mk.key]={label:mk.label,porJug:{}});
+      var prev=r.porJug[j.id];
+      // si una jugadora se midió 2 veces el mismo mes, cuenta la última
+      if(!prev||mk.orden>=prev._orden)r.porJug[j.id]=Object.assign({},row,{_orden:mk.orden});
     });
-    if(countThisN<minCount)break; // corta el promedio ahí donde queda muy poca gente (evita que 1 sola persona "sea" el promedio del plantel)
-    labels.push('N'+n);
-    keys.forEach(function(key){avgs[key].push(rowVals[key].length?avg(rowVals[key]):null);});
-  }
+  });
+  if(!conDatos)return;
+  // solo rondas reales: descarta meses con mediciones sueltas (1-2 personas) que distorsionan el promedio
+  var minCount=Math.max(5,Math.ceil(conDatos*0.15));
+  var labels=[],counts=[],avgs={masa_adiposa:[],masa_muscular:[],imo:[],s6p:[]};
+  Object.keys(rondas).map(Number).sort(function(a,b){return a-b;}).forEach(function(k){
+    var rows=Object.keys(rondas[k].porJug).map(function(id){return rondas[k].porJug[id];});
+    if(rows.length<minCount)return;
+    labels.push([rondas[k].label,rows.length+' jug.']);
+    counts.push(rows.length);
+    keys.forEach(function(key){
+      var vals=rows.map(function(x){return x[key];}).filter(function(v){return v!=null&&!isNaN(v);});
+      avgs[key].push(vals.length?avg(vals):null);
+    });
+  });
   CHART_SPECS.forEach(function(s){
     var ctx=$('team'+s.suf);if(!ctx)return;
     var ch=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'Promedio '+s.label,data:avgs[s.key],borderColor:s.color,backgroundColor:s.color,tension:.3,pointRadius:4,spanGaps:true}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{title:{display:true,text:s.label,font:{size:10}}}}}});
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{
+          title:function(it){return it.length?labels[it[0].dataIndex][0]:'';},
+          label:function(it){var v=it.parsed.y;return 'Promedio: '+(v!=null?v.toFixed(s.key==='imo'?2:1):'-')+' ('+counts[it.dataIndex]+' medidas ese mes)';}}}},
+        scales:{y:{grace:'25%',title:{display:true,text:s.label,font:{size:10}}}}}});
     APP.charts.push(ch);
   });
 }
