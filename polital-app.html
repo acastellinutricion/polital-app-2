@@ -424,6 +424,7 @@ async function cargarJugadoraSesion(jid,jugData){
   var m=await sb.from('mediciones').select('*').eq('jugadora_id',jid).order('n_medicion');
   var o=await sb.from('objetivos').select('*').eq('jugadora_id',jid).single();
   APP.jugMeds=m.data||[];APP.jugObj=o.data;
+  APP.jugComentarios=await cargarComentarios(jid);
   if(jugData)APP.session.jugadora=jugData;
 }
 async function bootstrap(){
@@ -469,6 +470,7 @@ function renderJugadora(tab){
   if(tab==='estado'){
     var jSess=APP.session.jugadora;
     if(jSess&&jSess.plan_pdf_url)content+='<div class="card"><div class="card-title">📎 Mi plan nutricional</div><a href="'+jSess.plan_pdf_url+'" target="_blank" class="btn btn-primary btn-sm">Ver plan (PDF)</a></div>';
+    if(APP.jugComentarios&&APP.jugComentarios.length)content+=comentariosCardHtml(APP.jugComentarios,false,'💬 Comentarios de tu nutricionista');
     if(!ult){content+='<div class="card" style="text-align:center;color:#888;padding:2rem">Sin mediciones cargadas</div>';}
     else{
       var motiv=mensajeMotivacional(meds);
@@ -863,6 +865,8 @@ async function renderDetalle(jid){
   var j=APP.selJug;var meds=medsJ(jid);var ult=meds.length?meds[meds.length-1]:null;
   var o=await sb.from('objetivos').select('*').eq('jugadora_id',jid).single();
   APP.selJugObj=o.data;
+  var coachDet=isCoach();
+  APP.selJugComentarios=coachDet?[]:await cargarComentarios(jid);
   var nav='<nav class="nav"><div class="nav-brand"><div class="nav-logo">P</div><div class="nav-title" style="color:#fff">Admin</div></div><button class="logout-btn" onclick="logout()">Salir</button></nav>';
   var edad=calcEdad(j.fecha_nacimiento);
   var subInfo=[j.planteles?j.planteles.nombre:'','@'+j.usuario,j.deporte||'Rugby'];
@@ -870,7 +874,7 @@ async function renderDetalle(jid){
   if(j.posicion)subInfo.push(j.posicion);
   var coach=isCoach();
   var accionesJug=coach?'<button class="btn btn-secondary btn-sm" onclick="exportarJugadora('+j.id+')">📄 PDF</button>'
-    :'<button class="btn btn-secondary btn-sm" onclick="modalAddMed('+j.id+')">+ Medición</button><button class="btn btn-secondary btn-sm" onclick="modalEditJug('+j.id+')">✏️ Editar</button><button class="btn btn-secondary btn-sm" onclick="modalObj('+j.id+')">Objetivos</button><button class="btn btn-secondary btn-sm" onclick="modalPlan('+j.id+')">📎 Plan</button><button class="btn btn-secondary btn-sm" onclick="modalNota('+j.id+')">📝 Nota</button><button class="btn btn-primary btn-sm" onclick="marcarDevolucion('+j.id+')">🔔 Devolución dada</button><button class="btn btn-secondary btn-sm" onclick="exportarJugadora('+j.id+')">📄 PDF</button>';
+    :'<button class="btn btn-secondary btn-sm" onclick="modalAddMed('+j.id+')">+ Medición</button><button class="btn btn-secondary btn-sm" onclick="modalEditJug('+j.id+')">✏️ Editar</button><button class="btn btn-secondary btn-sm" onclick="modalObj('+j.id+')">Objetivos</button><button class="btn btn-secondary btn-sm" onclick="modalPlan('+j.id+')">📎 Plan</button><button class="btn btn-secondary btn-sm" onclick="modalComentario('+j.id+')">💬 Comentario</button><button class="btn btn-secondary btn-sm" onclick="modalNota('+j.id+')">📝 Nota</button><button class="btn btn-primary btn-sm" onclick="marcarDevolucion('+j.id+')">🔔 Devolución dada</button><button class="btn btn-secondary btn-sm" onclick="exportarJugadora('+j.id+')">📄 PDF</button>';
   var content='<button class="back-btn" onclick="renderAdmin()">← Volver al plantel</button>'+
     '<div style="display:flex;align-items:center;gap:14px;margin-bottom:1rem"><div class="player-avatar" style="width:48px;height:48px;font-size:18px">'+ini(j.nombre)+'</div>'+
     '<div style="flex:1"><div style="font-size:20px;font-weight:600">'+j.nombre+'</div><div style="font-size:13px;color:#888">'+subInfo.join(' · ')+'</div></div>'+
@@ -884,6 +888,7 @@ async function renderDetalle(jid){
       '<div class="metric-card" style="border-top:3px solid '+s6p.h+'"><div class="metric-label">S6P</div><div class="metric-value">'+f0(ult.s6p)+'</div><span class="metric-badge '+s6p.c+'">'+s6p.l+'</span></div></div>';
   }
   content+=refCardHtml(j.deporte,j.posicion);
+  if(!coach)content+=comentariosCardHtml(APP.selJugComentarios||[],true,'💬 Comentarios (los ve el jugador)',j.id);
   if(j.notas)content+='<div class="card" style="background:#FFF9E6"><div class="card-title">📝 Nota privada</div><div style="font-size:13px;color:#555">'+j.notas+'</div></div>';
   if(j.plan_pdf_url)content+='<div class="card"><div class="card-title">📎 Plan nutricional</div><a href="'+j.plan_pdf_url+'" target="_blank" style="font-size:13px;color:#2E75B6;font-weight:600">'+(j.plan_pdf_nombre||'Ver PDF')+'</a>'+(j.plan_pdf_fecha?'<div style="font-size:11px;color:#aaa;margin-top:4px">Subido '+j.plan_pdf_fecha+'</div>':'')+'</div>';
   if(!coach){var obDet=objetivoDe(j.id);var devF=obDet?fechaISOaDMY(obDet.devolucion_fecha):null;content+='<div class="card"><div class="card-title">🔔 Devolución</div><div style="font-size:13px;color:#555">'+(devF?'Última: '+devF+' ('+diasDesdeISO(obDet.devolucion_fecha)+' días)':'Todavía no se marcó ninguna')+'</div></div>';}
@@ -1172,6 +1177,45 @@ async function marcarDevolucion(jid){
   if(idx>=0)APP.objetivos[idx]=Object.assign({},APP.objetivos[idx],{devolucion_fecha:iso});
   else APP.objetivos.push({jugadora_id:jid,devolucion_fecha:iso});
   if(APP.selJug&&APP.selJug.id===jid)renderDetalle(jid);else renderAdmin('pendientes');
+}
+
+// ── COMENTARIOS (historial con fecha, los ve el jugador) ─────
+function escHtml(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+async function cargarComentarios(jid){
+  var r=await sb.from('comentarios').select('*').eq('jugadora_id',jid).order('created_at',{ascending:false});
+  return r.error?[]:(r.data||[]);
+}
+function comentariosCardHtml(lista,editable,titulo,jid){
+  var items=lista.map(function(c){
+    var acciones=editable?'<span style="float:right"><button class="btn btn-secondary btn-sm" style="padding:2px 7px;font-size:11px" onclick="modalComentario('+jid+','+c.id+')">✏️</button> <button class="btn btn-secondary btn-sm" style="padding:2px 7px;font-size:11px" onclick="borrarComentario('+jid+','+c.id+')">🗑️</button></span>':'';
+    return '<div style="padding:10px 0;border-bottom:1px solid #f0f2f5">'+acciones+
+      '<div style="font-size:11px;color:#999;margin-bottom:4px">'+(fechaISOaDMY(c.created_at)||'')+(c.updated_at?' · editado':'')+'</div>'+
+      '<div style="font-size:13px;color:#333;white-space:pre-wrap">'+escHtml(c.texto)+'</div></div>';
+  }).join('');
+  if(!items)items='<div style="font-size:13px;color:#aaa">Todavía no hay comentarios. Usá “💬 Comentario” para dejarle uno.</div>';
+  return '<div class="card"><div class="card-title">'+titulo+'</div><div style="max-height:360px;overflow-y:auto">'+items+'</div></div>';
+}
+function modalComentario(jid,cid){
+  var j=APP.jugs.find(function(x){return x.id===jid;});
+  var c=cid?(APP.selJugComentarios||[]).find(function(x){return x.id===cid;}):null;
+  showModal((c?'Editar comentario — ':'Nuevo comentario — ')+j.nombre,
+    '<div style="font-size:12px;color:#888;margin-bottom:8px">Este comentario lo ve el jugador en su perfil, con la fecha.</div>'+
+    '<div class="form-group"><textarea id="comTxt" rows="5" style="resize:vertical" placeholder="Ej: ¡Muy buena bajada de pliegues! Seguí sumando proteína en la cena.">'+(c?escHtml(c.texto):'')+'</textarea></div>'+
+    '<div id="comErr"></div>',
+    '<button class="btn btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="guardarComentario('+jid+','+(c?c.id:'null')+')">Guardar</button>');
+}
+async function guardarComentario(jid,cid){
+  var t=($('comTxt').value||'').trim();
+  if(!t){$('comErr').innerHTML='<div class="msg-error">Escribí algo antes de guardar.</div>';return;}
+  var r=cid?await sb.from('comentarios').update({texto:t,updated_at:new Date().toISOString()}).eq('id',cid)
+           :await sb.from('comentarios').insert({jugadora_id:jid,texto:t});
+  if(r.error){$('comErr').innerHTML='<div class="msg-error">No se pudo guardar: '+escHtml(r.error.message)+'</div>';return;}
+  closeModal();renderDetalle(jid);
+}
+async function borrarComentario(jid,cid){
+  if(!confirm('¿Borrar este comentario? El jugador deja de verlo.'))return;
+  await sb.from('comentarios').delete().eq('id',cid);
+  renderDetalle(jid);
 }
 
 function modalNota(jid){
